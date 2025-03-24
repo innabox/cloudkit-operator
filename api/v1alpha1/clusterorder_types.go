@@ -27,6 +27,9 @@ import (
 // ClusterOrderSpec defines the desired state of ClusterOrder
 type ClusterOrderSpec struct {
 	// TemplateID is the unique identigier of the cluster template to use when creating this cluster
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:Pattern=`^[a-z][-a-z0-9]*[a-z0-9]$`
 	TemplateID string `json:"templateID,omitempty"`
 }
 
@@ -73,6 +76,9 @@ const (
 // ClusterOrderStatus defines the observed state of ClusterOrder
 type ClusterOrderStatus struct {
 	// Phase provides a single-value overview of the state of the ClusterOrder
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:Enum=Unknown;Accepted;Progressing;Failed;Ready
 	Phase ClusterOrderPhaseType `json:"phase,omitempty"`
 
 	// Conditions holds an array of metav1.Condition that describe the state of the ClusterOrder
