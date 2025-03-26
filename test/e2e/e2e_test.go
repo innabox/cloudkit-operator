@@ -63,7 +63,7 @@ var _ = Describe("controller", Ordered, func() {
 			projectimage := "example.com/cloudkit-operator:v0.0.1"
 
 			By("building the manager(Operator) image")
-			cmd := exec.Command("make", "docker-build", fmt.Sprintf("IMG=%s", projectimage))
+			cmd := exec.Command("make", "image-build", fmt.Sprintf("IMG=%s", projectimage))
 			_, err = utils.Run(cmd)
 			ExpectWithOffset(1, err).NotTo(HaveOccurred())
 
