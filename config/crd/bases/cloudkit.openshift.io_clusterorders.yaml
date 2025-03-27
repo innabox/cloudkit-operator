@@ -59,11 +59,14 @@ spec:
                   namespace:
                     description: Namespace that contains the HostedCluster resource
                     type: string
+                  roleBindingName:
+                    type: string
                   serviceAccountName:
                     type: string
                 required:
                 - hostedClusterName
                 - namespace
+                - roleBindingName
                 - serviceAccountName
                 type: object
               conditions:

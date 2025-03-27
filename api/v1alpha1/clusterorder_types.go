@@ -76,6 +76,7 @@ type ClusterOrderClusterReferenceType struct {
 	Namespace          string `json:"namespace"`
 	HostedClusterName  string `json:"hostedClusterName"`
 	ServiceAccountName string `json:"serviceAccountName"`
+	RoleBindingName    string `json:"roleBindingName"`
 }
 
 // ClusterOrderStatus defines the observed state of ClusterOrder

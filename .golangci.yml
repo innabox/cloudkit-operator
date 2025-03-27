@@ -24,6 +24,10 @@ linters:
     revive:
       rules:
         - name: comment-spacings
+    staticcheck:
+      checks:
+      - all
+      - '-QF1008'
   exclusions:
     generated: lax
     rules:
