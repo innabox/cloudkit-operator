@@ -63,7 +63,9 @@ func (r *ClusterOrderReconciler) components() []component {
 // ClusterOrderReconciler reconciles a ClusterOrder object
 type ClusterOrderReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme               *runtime.Scheme
+	CreateClusterWebhook string
+	DeleteClusterWebhook string
 }
 
 func newClusterReference() *v1alpha1.ClusterOrderClusterReferenceType {
@@ -225,37 +227,92 @@ func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Reques
 		log.Info("Deleted " + component.name)
 	}
 
+	if url := r.CreateClusterWebhook; url != "" {
+		if err := triggerWebHook(ctx, url, instance); err != nil {
+			log.Error(err, "Failed to trigger webhook")
+			return ctrl.Result{}, err
+		}
+	}
+
 	return ctrl.Result{}, nil
+}
+
+func (r *ClusterOrderReconciler) waitHostedClusterDelete(ctx context.Context, instance *v1alpha1.ClusterOrder) (bool, error) {
+	log := ctrllog.FromContext(ctx)
+
+	var hostedClusterList hypershiftv1beta1.HostedClusterList
+	if err := r.List(ctx, &hostedClusterList, labelSelectorFromInstance(instance)); err != nil {
+		log.Error(err, "failed to list hosted clusters")
+		return false, err
+	}
+
+	if len(hostedClusterList.Items) > 0 {
+		if url := r.DeleteClusterWebhook; url != "" {
+			if err := triggerWebHook(ctx, url, instance); err != nil {
+				log.Error(err, "Failed to trigger webhook")
+				return false, err
+			}
+		}
+
+		// FIXME: If we have no teardown webhook, should we deleted the hostedcluster ourselves?
+
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func (r *ClusterOrderReconciler) waitNamespaceDelete(ctx context.Context, instance *v1alpha1.ClusterOrder) (bool, error) {
+	log := ctrllog.FromContext(ctx)
+
+	var namespaceList corev1.NamespaceList
+	if err := r.List(ctx, &namespaceList, labelSelectorFromInstance(instance)); err != nil {
+		log.Error(err, "Failed to list namespaces")
+		return false, err
+	}
+
+	if len(namespaceList.Items) > 0 {
+		for _, ns := range namespaceList.Items {
+			if err := r.Client.Delete(ctx, &ns); err != nil {
+				log.Error(err, "Failed to delete namespace "+ns.GetName())
+				return false, err
+			}
+		}
+		return false, nil
+	}
+
+	return true, nil
 }
 
 func (r *ClusterOrderReconciler) handleDelete(ctx context.Context, _ ctrl.Request, instance *v1alpha1.ClusterOrder) (ctrl.Result, error) {
 	log := ctrllog.FromContext(ctx)
 	log.Info("Delete " + instance.GetName())
 
-	if controllerutil.ContainsFinalizer(instance, cloudkitFinalizer) {
-		labelSelector := client.MatchingLabels{cloudkitClusterOrderNameLabel: instance.GetName()}
+	if !controllerutil.ContainsFinalizer(instance, cloudkitFinalizer) {
+		return ctrl.Result{}, nil
+	}
 
-		var namespaceList corev1.NamespaceList
-		if err := r.List(ctx, &namespaceList, labelSelector); err != nil {
-			log.Error(err, "Failed to list Namespaces")
-			return ctrl.Result{}, err
-		}
+	// Wait until HostedCluster has been deleted
+	if gone, err := r.waitHostedClusterDelete(ctx, instance); !gone {
+		return ctrl.Result{}, err
+	}
 
-		if len(namespaceList.Items) == 0 {
-			controllerutil.RemoveFinalizer(instance, cloudkitFinalizer)
-			if err := r.Update(ctx, instance); err != nil {
-				return ctrl.Result{}, err
-			}
-			return ctrl.Result{}, nil
-		}
+	// Wait until Namespace has been deleted
+	if gone, err := r.waitNamespaceDelete(ctx, instance); !gone {
+		return ctrl.Result{}, err
+	}
 
-		for _, ns := range namespaceList.Items {
-			if err := r.Client.Delete(ctx, &ns); err != nil {
-				log.Error(err, "Failed to delete namespace "+ns.GetName())
-				return ctrl.Result{}, err
-			}
-		}
+	controllerutil.RemoveFinalizer(instance, cloudkitFinalizer)
+	if err := r.Update(ctx, instance); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func labelSelectorFromInstance(instance *v1alpha1.ClusterOrder) client.MatchingLabels {
+	return client.MatchingLabels{
+		cloudkitClusterOrderNamespaceLabel: instance.GetNamespace(),
+		cloudkitClusterOrderNameLabel:      instance.GetName(),
+	}
 }

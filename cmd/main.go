@@ -147,8 +147,10 @@ func main() {
 	}
 
 	if err = (&controller.ClusterOrderReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:               mgr.GetClient(),
+		Scheme:               mgr.GetScheme(),
+		CreateClusterWebhook: os.Getenv("CLOUDKIT_CLUSTER_CREATE_WEBHOOK"),
+		DeleteClusterWebhook: os.Getenv("CLOUDKIT_CLUSTER_DELETE_WEBHOOK"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterOrder")
 		os.Exit(1)

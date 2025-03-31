@@ -1,8 +1,22 @@
 # cloudkit-operator
-// TODO(user): Add simple overview of use/purpose
+
+Deploy OpenShift clusters in response to `ClusterOrders` using [Hosted Control Planes].
+
+[hosted control planes]: https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/hosted_control_planes/hosted-control-planes-overview
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+
+cloudkit-operator is part of the [AI-in-a-Box][innabox] project. It accepts `ClusterOrder` requests from the [fulfillment service] (or from elsewhere), and drives the process of deploying a new cluster.
+
+[innabox]: https://github.com/innabox
+[fulfillment service]: https://github.com/innabox/fulfillment-service/
+
+## Configuration
+
+cloudkit-operator makes use of the following environment variables:
+
+- `CLOUDKIT_CLUSTER_CREATE_WEBHOOK` -- the operator will post the JSON-serialized ClusterOrder to this URL after creating the target namespace, service account, and rolebinding.
+- `CLOUDKIT_CLUSTER_DELETE_WEBHOOK` -- the operator will post the JSON-serialized ClusterOrder to this URL before deleting the target namespace.
 
 ## Getting Started
 
