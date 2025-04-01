@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	cloudkitv1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
+	"github.com/innabox/cloudkit-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func (r *ClusterOrderReconciler) newNamespace(ctx context.Context, instance *cloudkitv1alpha1.ClusterOrder) (*appResource, error) {
+func (r *ClusterOrderReconciler) newNamespace(ctx context.Context, instance *v1alpha1.ClusterOrder) (*appResource, error) {
 	namespaceName := instance.GetClusterReferenceNamespace()
 	if namespaceName == "" {
 		namespaceName = generateNamespaceName(instance)
@@ -42,7 +42,7 @@ func (r *ClusterOrderReconciler) newNamespace(ctx context.Context, instance *clo
 	}, nil
 }
 
-func (r *ClusterOrderReconciler) newServiceAccount(ctx context.Context, instance *cloudkitv1alpha1.ClusterOrder) (*appResource, error) {
+func (r *ClusterOrderReconciler) newServiceAccount(ctx context.Context, instance *v1alpha1.ClusterOrder) (*appResource, error) {
 	namespaceName := instance.GetClusterReferenceNamespace()
 	if namespaceName == "" {
 		return nil, fmt.Errorf("unable to retrieve required information from spec.clusterReference")
@@ -71,7 +71,7 @@ func (r *ClusterOrderReconciler) newServiceAccount(ctx context.Context, instance
 	}, nil
 }
 
-func (r *ClusterOrderReconciler) newAdminRoleBinding(ctx context.Context, instance *cloudkitv1alpha1.ClusterOrder) (*appResource, error) {
+func (r *ClusterOrderReconciler) newAdminRoleBinding(ctx context.Context, instance *v1alpha1.ClusterOrder) (*appResource, error) {
 	namespaceName := instance.GetClusterReferenceNamespace()
 	serviceAccountName := instance.GetClusterReferenceServiceAccountName()
 	if namespaceName == "" || serviceAccountName == "" {
@@ -118,7 +118,7 @@ func (r *ClusterOrderReconciler) newAdminRoleBinding(ctx context.Context, instan
 	}, nil
 }
 
-func ensureCommonLabels(instance *cloudkitv1alpha1.ClusterOrder, obj client.Object) {
+func ensureCommonLabels(instance *v1alpha1.ClusterOrder, obj client.Object) {
 	requiredLabels := commonLabelsFromOrder(instance)
 	objLabels := obj.GetLabels()
 	if objLabels == nil {
@@ -130,7 +130,7 @@ func ensureCommonLabels(instance *cloudkitv1alpha1.ClusterOrder, obj client.Obje
 	obj.SetLabels(objLabels)
 }
 
-func commonLabelsFromOrder(instance *cloudkitv1alpha1.ClusterOrder) map[string]string {
+func commonLabelsFromOrder(instance *v1alpha1.ClusterOrder) map[string]string {
 	key := client.ObjectKeyFromObject(instance)
 	return map[string]string{
 		"app.kubernetes.io/name":           cloudkitAppName,

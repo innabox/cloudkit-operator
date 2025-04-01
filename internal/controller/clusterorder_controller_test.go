@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	cloudkitv1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
+	v1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
 )
 
 var _ = Describe("ClusterOrder Controller", func() {
@@ -40,18 +40,18 @@ var _ = Describe("ClusterOrder Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		clusterorder := &cloudkitv1alpha1.ClusterOrder{}
+		clusterorder := &v1alpha1.ClusterOrder{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind ClusterOrder")
 			err := k8sClient.Get(ctx, typeNamespacedName, clusterorder)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &cloudkitv1alpha1.ClusterOrder{
+				resource := &v1alpha1.ClusterOrder{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					Spec: cloudkitv1alpha1.ClusterOrderSpec{
+					Spec: v1alpha1.ClusterOrderSpec{
 						TemplateID: "test",
 					},
 				}
@@ -61,7 +61,7 @@ var _ = Describe("ClusterOrder Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &cloudkitv1alpha1.ClusterOrder{}
+			resource := &v1alpha1.ClusterOrder{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 

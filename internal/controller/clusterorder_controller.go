@@ -34,11 +34,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	cloudkitv1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
+	"github.com/innabox/cloudkit-operator/api/v1alpha1"
 )
 
 // NewComponentFn is the type of a function that creates a required component
-type NewComponentFn func(context.Context, *cloudkitv1alpha1.ClusterOrder) (*appResource, error)
+type NewComponentFn func(context.Context, *v1alpha1.ClusterOrder) (*appResource, error)
 
 type appResource struct {
 	object      client.Object
@@ -65,8 +65,8 @@ type ClusterOrderReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-func newClusterReference() *cloudkitv1alpha1.ClusterOrderClusterReferenceType {
-	return &cloudkitv1alpha1.ClusterOrderClusterReferenceType{}
+func newClusterReference() *v1alpha1.ClusterOrderClusterReferenceType {
+	return &v1alpha1.ClusterOrderClusterReferenceType{}
 }
 
 // +kubebuilder:rbac:groups=cloudkit.openshift.io,resources=clusterorders,verbs=get;list;watch;create;update;patch;delete
@@ -80,7 +80,7 @@ func newClusterReference() *cloudkitv1alpha1.ClusterOrderClusterReferenceType {
 func (r *ClusterOrderReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = ctrllog.FromContext(ctx)
 
-	instance := &cloudkitv1alpha1.ClusterOrder{}
+	instance := &v1alpha1.ClusterOrder{}
 	err := r.Client.Get(ctx, req.NamespacedName, instance)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -105,7 +105,7 @@ func (r *ClusterOrderReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&cloudkitv1alpha1.ClusterOrder{}).
+		For(&v1alpha1.ClusterOrder{}).
 		Watches(
 			&corev1.Namespace{},
 			handler.EnqueueRequestsFromMapFunc(r.mapObjectToCluster),
@@ -149,7 +149,7 @@ func (r *ClusterOrderReconciler) mapObjectToCluster(ctx context.Context, obj cli
 	}
 }
 
-func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Request, instance *cloudkitv1alpha1.ClusterOrder) (ctrl.Result, error) {
+func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Request, instance *v1alpha1.ClusterOrder) (ctrl.Result, error) {
 	log := ctrllog.FromContext(ctx)
 	log.Info("Create or update " + instance.GetName())
 
@@ -222,7 +222,7 @@ func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Reques
 	return ctrl.Result{}, nil
 }
 
-func (r *ClusterOrderReconciler) handleDelete(ctx context.Context, _ ctrl.Request, instance *cloudkitv1alpha1.ClusterOrder) (ctrl.Result, error) {
+func (r *ClusterOrderReconciler) handleDelete(ctx context.Context, _ ctrl.Request, instance *v1alpha1.ClusterOrder) (ctrl.Result, error) {
 	log := ctrllog.FromContext(ctx)
 	log.Info("Delete " + instance.GetName())
 
