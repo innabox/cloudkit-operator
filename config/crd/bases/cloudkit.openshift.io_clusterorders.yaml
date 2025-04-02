@@ -44,7 +44,7 @@ spec:
               templateID:
                 description: TemplateID is the unique identigier of the cluster template
                   to use when creating this cluster
-                format: uuid
+                pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
                 type: string
               templateParameters:
                 type: string
