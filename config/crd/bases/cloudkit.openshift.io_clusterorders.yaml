@@ -11,6 +11,8 @@ spec:
     kind: ClusterOrder
     listKind: ClusterOrderList
     plural: clusterorders
+    shortNames:
+    - cord
     singular: clusterorder
   scope: Namespaced
   versions:
