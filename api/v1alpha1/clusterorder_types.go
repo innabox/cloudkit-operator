@@ -31,6 +31,8 @@ type ClusterOrderSpec struct {
 	// +kubebuilder:validation:Type=string
 	// +kubebuilder:validation:Format=uuid
 	TemplateID string `json:"templateID,omitempty"`
+	// +kubebuilder:validation:Optional
+	TemplateParameters string `json:"templateParameters,omitempty"`
 }
 
 // ClusterOrderPhaseType is a valid value for .status.phase

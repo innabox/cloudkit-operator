@@ -46,6 +46,8 @@ spec:
                   to use when creating this cluster
                 format: uuid
                 type: string
+              templateParameters:
+                type: string
             required:
             - templateID
             type: object
