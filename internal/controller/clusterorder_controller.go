@@ -99,8 +99,11 @@ func (r *ClusterOrderReconciler) Reconcile(ctx context.Context, req ctrl.Request
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterOrderReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	labelPredicate, err := predicate.LabelSelectorPredicate(metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			cloudkitClusterOrderNameLabel: "",
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      cloudkitClusterOrderNameLabel,
+				Operator: metav1.LabelSelectorOpExists,
+			},
 		},
 	})
 	if err != nil {
