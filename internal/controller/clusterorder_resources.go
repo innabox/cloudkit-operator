@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	"github.com/innabox/cloudkit-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -124,9 +125,7 @@ func ensureCommonLabels(instance *v1alpha1.ClusterOrder, obj client.Object) {
 	if objLabels == nil {
 		objLabels = make(map[string]string)
 	}
-	for k, v := range requiredLabels {
-		objLabels[k] = v
-	}
+	maps.Copy(objLabels, requiredLabels)
 	obj.SetLabels(objLabels)
 }
 
