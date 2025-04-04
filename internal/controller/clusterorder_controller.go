@@ -24,6 +24,8 @@ import (
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -86,6 +88,7 @@ func NewClusterOrderReconciler(client client.Client, scheme *runtime.Scheme, cre
 // +kubebuilder:rbac:groups=cloudkit.openshift.io,resources=clusterorders/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=namespaces;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=hypershift.openshift.io,resources=hostedclusters,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -100,16 +103,28 @@ func (r *ClusterOrderReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	// FIXME: This is probably the wrong solution.
 	if instance.GetNamespace() != r.ClusterOrderNamespace {
+		log.Info(fmt.Sprintf("Ignoring clusterorder %s in namespace %s", instance.GetName(), instance.GetNamespace()))
 		return ctrl.Result{}, nil
 	}
 
 	log.Info(fmt.Sprintf("Start reconcile for %s", instance.GetName()))
+
+	oldstatus := instance.Status.DeepCopy()
 
 	var res ctrl.Result
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
 		res, err = r.handleUpdate(ctx, req, instance)
 	} else {
 		res, err = r.handleDelete(ctx, req, instance)
+	}
+
+	if err == nil {
+		if !equality.Semantic.DeepEqual(instance.Status, oldstatus) {
+			log.Info(fmt.Sprintf("Update status for %s", instance.GetName()))
+			if err := r.Status().Update(ctx, instance); err != nil {
+				return res, err
+			}
+		}
 	}
 
 	log.Info(fmt.Sprintf("End reconcile for %s", instance.GetName()))
@@ -186,6 +201,8 @@ func (r *ClusterOrderReconciler) mapObjectToCluster(ctx context.Context, obj cli
 func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Request, instance *v1alpha1.ClusterOrder) (ctrl.Result, error) {
 	log := ctrllog.FromContext(ctx)
 
+	instance.InitializeConditionsForUpdate()
+
 	if controllerutil.AddFinalizer(instance, cloudkitFinalizer) {
 		if err := r.Update(ctx, instance); err != nil {
 			return ctrl.Result{}, err
@@ -214,78 +231,101 @@ func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Reques
 		}
 	}
 
+	instance.SetStatusCondition(v1alpha1.ConditionNamespaceCreated, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
+
+	if hc, _ := r.findHostedCluster(ctx, instance); hc != nil {
+		name := hc.GetName()
+		instance.SetClusterReferenceHostedClusterName(name)
+		instance.SetStatusCondition(v1alpha1.ConditionControlPlaneCreated, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
+
+		if controlPlaneIsAvailable(hc) {
+			instance.SetStatusCondition(v1alpha1.ConditionControlPlaneAvailable, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
+		}
+	}
+
 	if url := r.CreateClusterWebhook; url != "" {
 		if err := triggerWebHook(ctx, url, instance); err != nil {
-			log.Error(err, "Failed to trigger webhook")
-			return ctrl.Result{}, err
+			log.Error(err, fmt.Sprintf("Failed to trigger webhook %s: %v", url, err))
+			return ctrl.Result{Requeue: true}, nil
 		}
 	}
 
 	return ctrl.Result{}, nil
 }
 
-func (r *ClusterOrderReconciler) waitHostedClusterDelete(ctx context.Context, instance *v1alpha1.ClusterOrder) (bool, error) {
+func controlPlaneIsAvailable(hc *hypershiftv1beta1.HostedCluster) bool {
+	return (meta.IsStatusConditionTrue(hc.Status.Conditions, "Available") &&
+		meta.IsStatusConditionFalse(hc.Status.Conditions, "Degraded"))
+}
+
+func (r *ClusterOrderReconciler) findHostedCluster(ctx context.Context, instance *v1alpha1.ClusterOrder) (*hypershiftv1beta1.HostedCluster, error) {
 	log := ctrllog.FromContext(ctx)
 
 	var hostedClusterList hypershiftv1beta1.HostedClusterList
 	if err := r.List(ctx, &hostedClusterList, labelSelectorFromInstance(instance)); err != nil {
-		log.Error(err, "failed to list hosted clusters")
-		return false, err
+		log.Error(err, "Failed to list hosted clusters")
+		return nil, err
 	}
 
-	if len(hostedClusterList.Items) > 0 {
-		if url := r.DeleteClusterWebhook; url != "" {
-			if err := triggerWebHook(ctx, url, instance); err != nil {
-				log.Error(err, "Failed to trigger webhook")
-				return false, err
-			}
-		}
-
-		return false, nil
+	if len(hostedClusterList.Items) > 1 {
+		return nil, fmt.Errorf("found too many (%d) matching hosted clusters for %s", len(hostedClusterList.Items), instance.GetName())
 	}
 
-	return true, nil
+	if len(hostedClusterList.Items) == 0 {
+		return nil, nil
+	}
+
+	return &hostedClusterList.Items[0], nil
 }
 
-func (r *ClusterOrderReconciler) waitNamespaceDelete(ctx context.Context, instance *v1alpha1.ClusterOrder) (bool, error) {
+func (r *ClusterOrderReconciler) findNamespace(ctx context.Context, instance *v1alpha1.ClusterOrder) (*corev1.Namespace, error) {
 	log := ctrllog.FromContext(ctx)
 
 	var namespaceList corev1.NamespaceList
 	if err := r.List(ctx, &namespaceList, labelSelectorFromInstance(instance)); err != nil {
 		log.Error(err, "Failed to list namespaces")
-		return false, err
+		return nil, err
 	}
 
-	if len(namespaceList.Items) > 0 {
-		for _, ns := range namespaceList.Items {
-			log.Info(fmt.Sprintf("Delete ns %s for %s", ns.GetName(), instance.GetName()))
-			if err := r.Client.Delete(ctx, &ns); err != nil {
-				log.Error(err, "Failed to delete namespace "+ns.GetName())
-				return false, err
-			}
-		}
-		return false, nil
+	if len(namespaceList.Items) > 1 {
+		return nil, fmt.Errorf("found too many (%d) matching namespaces for %s", len(namespaceList.Items), instance.GetName())
 	}
 
-	return true, nil
+	if len(namespaceList.Items) == 0 {
+		return nil, nil
+	}
+
+	return &namespaceList.Items[0], nil
 }
 
 //nolint:unparam
 func (r *ClusterOrderReconciler) handleDelete(ctx context.Context, _ ctrl.Request, instance *v1alpha1.ClusterOrder) (ctrl.Result, error) {
 	log := ctrllog.FromContext(ctx)
-	log.Info("Delete " + instance.GetName())
+	log.Info(fmt.Sprintf("Deleting ClusterOrder %s", instance.GetName()))
 
 	if !controllerutil.ContainsFinalizer(instance, cloudkitFinalizer) {
 		return ctrl.Result{}, nil
 	}
 
 	// Wait until HostedCluster has been deleted
-	if gone, err := r.waitHostedClusterDelete(ctx, instance); !gone {
+	if hc, err := r.findHostedCluster(ctx, instance); hc != nil {
+		log.Info(fmt.Sprintf("Waiting for HostedCluster %s to delete", hc.GetName()))
+		if url := r.DeleteClusterWebhook; url != "" {
+			if err := triggerWebHook(ctx, url, instance); err != nil {
+				log.Error(err, fmt.Sprintf("Failed to trigger webhook %s: %v", url, err))
+				return ctrl.Result{Requeue: true}, nil
+			}
+		}
 		return ctrl.Result{}, err
 	}
 
 	// Wait until Namespace has been deleted
-	if gone, err := r.waitNamespaceDelete(ctx, instance); !gone {
+	if ns, err := r.findNamespace(ctx, instance); ns != nil {
+		log.Info(fmt.Sprintf("Deleting namespace %s for %s", ns.GetName(), instance.GetName()))
+		if err := r.Client.Delete(ctx, ns); err != nil {
+			log.Error(err, fmt.Sprintf("Failed to delete namespace %s", ns.GetName()))
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{}, err
 	}
 

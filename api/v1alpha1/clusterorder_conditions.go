@@ -12,12 +12,24 @@ const (
 	ConditionControlPlaneAvailable = "ControlPlaneAvailable"
 	ConditionClusterAvailable      = "ClusterAvailable"
 	ConditionProgressing           = "Progressing"
+	ConditionDeleting              = "Deleting"
 )
 
 const (
+	ReasonInitialized = "Initialized"
+	ReasonAsExpected  = "AsExpected"
 	ReasonCreated     = "Created"
 	ReasonProgressing = "Progressing"
 )
+
+func (co *ClusterOrder) InitializeConditionsForUpdate() {
+	co.SetStatusCondition(ConditionAccepted, metav1.ConditionTrue, "", ReasonInitialized)
+	co.SetStatusCondition(ConditionDeleting, metav1.ConditionFalse, "", ReasonInitialized)
+	co.SetStatusCondition(ConditionProgressing, metav1.ConditionTrue, "", ReasonProgressing)
+	co.SetStatusCondition(ConditionNamespaceCreated, metav1.ConditionFalse, "", ReasonInitialized)
+	co.SetStatusCondition(ConditionControlPlaneCreated, metav1.ConditionFalse, "", ReasonInitialized)
+	co.SetStatusCondition(ConditionControlPlaneAvailable, metav1.ConditionFalse, "", ReasonInitialized)
+}
 
 func (co *ClusterOrder) SetStatusCondition(conditionType string, status metav1.ConditionStatus, message string, reason string) bool {
 	condition := metav1.Condition{
