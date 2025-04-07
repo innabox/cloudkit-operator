@@ -180,18 +180,13 @@ func (r *ClusterOrderReconciler) mapObjectToCluster(ctx context.Context, obj cli
 		return nil
 	}
 
-	clusterOrderNamespace, exists := obj.GetLabels()[cloudkitClusterOrderNamespaceLabel]
-	if !exists {
-		return nil
-	}
-
 	log.Info("Selecting " + obj.GetName())
 
 	return []reconcile.Request{
 		{
 			NamespacedName: client.ObjectKey{
 				Name:      clusterOrderName,
-				Namespace: clusterOrderNamespace,
+				Namespace: r.ClusterOrderNamespace,
 			},
 		},
 	}
@@ -340,7 +335,6 @@ func (r *ClusterOrderReconciler) handleDelete(ctx context.Context, _ ctrl.Reques
 
 func labelSelectorFromInstance(instance *v1alpha1.ClusterOrder) client.MatchingLabels {
 	return client.MatchingLabels{
-		cloudkitClusterOrderNamespaceLabel: instance.GetNamespace(),
-		cloudkitClusterOrderNameLabel:      instance.GetName(),
+		cloudkitClusterOrderNameLabel: instance.GetName(),
 	}
 }

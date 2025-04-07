@@ -144,8 +144,7 @@ func ensureCommonLabels(instance *v1alpha1.ClusterOrder, obj client.Object) {
 func commonLabelsFromOrder(instance *v1alpha1.ClusterOrder) map[string]string {
 	key := client.ObjectKeyFromObject(instance)
 	return map[string]string{
-		"app.kubernetes.io/name":           cloudkitAppName,
-		cloudkitClusterOrderNameLabel:      key.Name,
-		cloudkitClusterOrderNamespaceLabel: key.Namespace,
+		"app.kubernetes.io/name":      cloudkitAppName,
+		cloudkitClusterOrderNameLabel: key.Name,
 	}
 }
