@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+	"google.golang.org/grpc"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -68,9 +69,17 @@ type ClusterOrderReconciler struct {
 	CreateClusterWebhook  string
 	DeleteClusterWebhook  string
 	ClusterOrderNamespace string
+	GrpcConn              *grpc.ClientConn
 }
 
-func NewClusterOrderReconciler(client client.Client, scheme *runtime.Scheme, createClusterWebhook string, deleteClusterWebhook string, clusterOrderNamespace string) *ClusterOrderReconciler {
+func NewClusterOrderReconciler(
+	client client.Client,
+	scheme *runtime.Scheme,
+	createClusterWebhook string,
+	deleteClusterWebhook string,
+	clusterOrderNamespace string,
+	grpcConn *grpc.ClientConn,
+) *ClusterOrderReconciler {
 	if clusterOrderNamespace == "" {
 		clusterOrderNamespace = defaultClusterOrderNamespace
 	}
@@ -80,6 +89,7 @@ func NewClusterOrderReconciler(client client.Client, scheme *runtime.Scheme, cre
 		CreateClusterWebhook:  createClusterWebhook,
 		DeleteClusterWebhook:  deleteClusterWebhook,
 		ClusterOrderNamespace: clusterOrderNamespace,
+		GrpcConn:              grpcConn,
 	}
 }
 

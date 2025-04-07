@@ -18,15 +18,23 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"os"
+	"strings"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+	"golang.org/x/oauth2"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	insecurecredentials "google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials/oauth"
+	experimentalcredentials "google.golang.org/grpc/experimental/credentials"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -38,6 +46,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	v1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
+	fulfillmentv1 "github.com/innabox/cloudkit-operator/internal/api/fulfillment/v1"
 	"github.com/innabox/cloudkit-operator/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
@@ -60,6 +69,10 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var grpcPlaintext bool
+	var grpcInsecure bool
+	var grpcTokenFile string
+	var fulfillmentServerAddress string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -71,6 +84,30 @@ func main() {
 		"If set, the metrics endpoint is served securely via HTTPS. Use --metrics-secure=false to use HTTP instead.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.BoolVar(
+		&grpcPlaintext,
+		"grpc-plaintext",
+		false,
+		"Enable gRPC without TLS.",
+	)
+	flag.BoolVar(
+		&grpcInsecure,
+		"grpc-insecure",
+		false,
+		"Enable insecure gRPC, without checking the server TLS certificates.",
+	)
+	flag.StringVar(
+		&grpcTokenFile,
+		"grpc-token-file",
+		"",
+		"Path of the file containing the token for gRPC authentication.",
+	)
+	flag.StringVar(
+		&fulfillmentServerAddress,
+		"fulfillment-server-address",
+		"",
+		"Address of the fulfillment server.",
+	)
 	opts := zap.Options{
 		Development: true,
 	}
@@ -146,12 +183,27 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create the gRPC connection:
+	var grpcConn *grpc.ClientConn
+	if fulfillmentServerAddress != "" {
+		setupLog.Info("gRPC connection to fulfillment service is enabled")
+		grpcConn, err = createGrpcConn(grpcPlaintext, grpcInsecure, grpcTokenFile, fulfillmentServerAddress)
+		if err != nil {
+			setupLog.Error(err, "failed to create gRPC connection to fulfillment service")
+			os.Exit(1)
+		}
+		defer grpcConn.Close() //nolint:errcheck
+	} else {
+		setupLog.Info("gRPC connection to fulfillment service is disabled")
+	}
+
 	if err = (controller.NewClusterOrderReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
 		os.Getenv("CLOUDKIT_CLUSTER_CREATE_WEBHOOK"),
 		os.Getenv("CLOUDKIT_CLUSTER_DELETE_WEBHOOK"),
 		os.Getenv("CLOUDKIT_CLUSTER_ORDER_NAMESPACE"),
+		grpcConn,
 	)).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterOrder")
 		os.Exit(1)
@@ -172,4 +224,73 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+//nolint:nakedret
+func createGrpcConn(plaintext, insecure bool, tokenFile, serverAddress string) (result *grpc.ClientConn, err error) {
+	// Configure use of TLS:
+	var dialOpts []grpc.DialOption
+	var transportCreds credentials.TransportCredentials
+	if plaintext {
+		transportCreds = insecurecredentials.NewCredentials()
+	} else {
+		tlsConfig := &tls.Config{}
+		if insecure {
+			tlsConfig.InsecureSkipVerify = true
+		}
+
+		// TODO: This should have been the non-experimental package, but we need to use this one because
+		// currently the OpenShift router doesn't seem to support ALPN, and the regular credentials package
+		// requires it since version 1.67. See here for details:
+		//
+		// https://github.com/grpc/grpc-go/issues/434
+		// https://github.com/grpc/grpc-go/pull/7980
+		//
+		// Is there a way to configure the OpenShift router to avoid this?
+		transportCreds = experimentalcredentials.NewTLSWithALPNDisabled(tlsConfig)
+	}
+	if transportCreds != nil {
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(transportCreds))
+	}
+
+	// Confgure use of token:
+	if tokenFile != "" {
+		var tokenData []byte
+		tokenData, err = os.ReadFile(tokenFile)
+		if err != nil {
+			return
+		}
+		tokenText := strings.TrimSpace(string(tokenData))
+		token := &oauth2.Token{
+			AccessToken: tokenText,
+		}
+		creds := oauth.TokenSource{
+			TokenSource: oauth2.StaticTokenSource(token),
+		}
+		dialOpts = append(dialOpts, grpc.WithPerRPCCredentials(creds))
+	}
+
+	conn, err := grpc.NewClient(serverAddress, dialOpts...)
+	if err != nil {
+		return
+	}
+
+	// TODO: This is a simple operation to operation to verify that the connection is working, should be removed
+	// when the connection is actually used.
+	client := fulfillmentv1.NewClusterTemplatesClient(conn)
+	response, err := client.List(context.TODO(), &fulfillmentv1.ClusterTemplatesListRequest{})
+	if err != nil {
+		return
+	}
+	for _, item := range response.Items {
+		setupLog.Info(
+			"Available template",
+			"id", item.Id,
+			"title", item.Title,
+			"description", item.Description,
+		)
+	}
+
+	result = conn
+	return
 }
