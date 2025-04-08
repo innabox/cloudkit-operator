@@ -246,12 +246,13 @@ func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Reques
 		if controlPlaneIsAvailable(hc) {
 			instance.SetStatusCondition(v1alpha1.ConditionControlPlaneAvailable, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
 		}
-	}
-
-	if url := r.CreateClusterWebhook; url != "" {
-		if err := triggerWebHook(ctx, url, instance); err != nil {
-			log.Error(err, fmt.Sprintf("Failed to trigger webhook %s: %v", url, err))
-			return ctrl.Result{Requeue: true}, nil
+	} else {
+		// only trigger webhook if the hostedcluster does not exist
+		if url := r.CreateClusterWebhook; url != "" {
+			if err := triggerWebHook(ctx, url, instance); err != nil {
+				log.Error(err, fmt.Sprintf("Failed to trigger webhook %s: %v", url, err))
+				return ctrl.Result{Requeue: true}, nil
+			}
 		}
 	}
 
