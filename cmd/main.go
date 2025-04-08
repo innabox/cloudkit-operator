@@ -193,6 +193,18 @@ func main() {
 			os.Exit(1)
 		}
 		defer grpcConn.Close() //nolint:errcheck
+		if err = (controller.NewFeedbackReconciler(
+			ctrl.Log.WithName("feedback"),
+			mgr.GetClient(),
+			grpcConn,
+		)).SetupWithManager(mgr); err != nil {
+			setupLog.Error(
+				err,
+				"unable to create feedback controller",
+				"controller", "Feedback",
+			)
+			os.Exit(1)
+		}
 	} else {
 		setupLog.Info("gRPC connection to fulfillment service is disabled")
 	}
@@ -203,11 +215,11 @@ func main() {
 		os.Getenv("CLOUDKIT_CLUSTER_CREATE_WEBHOOK"),
 		os.Getenv("CLOUDKIT_CLUSTER_DELETE_WEBHOOK"),
 		os.Getenv("CLOUDKIT_CLUSTER_ORDER_NAMESPACE"),
-		grpcConn,
 	)).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterOrder")
 		os.Exit(1)
 	}
+
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
