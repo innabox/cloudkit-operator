@@ -183,7 +183,6 @@ spec:
                 description: Phase provides a single-value overview of the state of
                   the ClusterOrder
                 enum:
-                - Unknown
                 - Progressing
                 - Failed
                 - Ready

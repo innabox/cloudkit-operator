@@ -316,8 +316,6 @@ func (t *feedbackReconcilerTask) mapConditionStatus(status metav1.ConditionStatu
 
 func (t *feedbackReconcilerTask) syncPhase(ctx context.Context) error {
 	switch t.object.Status.Phase {
-	case ckv1alpha1.ClusterOrderPhaseAccepted:
-		return t.syncPhaseAccepted()
 	case ckv1alpha1.ClusterOrderPhaseProgressing:
 		return t.syncPhaseProgressing()
 	case ckv1alpha1.ClusterOrderPhaseFailed:
@@ -334,11 +332,6 @@ func (t *feedbackReconcilerTask) syncPhase(ctx context.Context) error {
 		)
 		return nil
 	}
-	return nil
-}
-
-func (t *feedbackReconcilerTask) syncPhaseAccepted() error {
-	t.publicOrder.GetStatus().SetState(ffv1.ClusterOrderState_CLUSTER_ORDER_STATE_PROGRESSING)
 	return nil
 }
 

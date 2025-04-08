@@ -358,13 +358,13 @@ func (r *ClusterOrderReconciler) handleNodePool(ctx context.Context, instance *v
 	return nil
 }
 
-func hostedClusterIsReady(hc *hypershiftv1beta1.HostedCluster) bool {
-	return (meta.IsStatusConditionTrue(hc.Status.Conditions, "ClusterVersionSucceeding") &&
+func hostedClusterControlPlaneIsAvailable(hc *hypershiftv1beta1.HostedCluster) bool {
+	return (meta.IsStatusConditionTrue(hc.Status.Conditions, "Available") &&
 		meta.IsStatusConditionFalse(hc.Status.Conditions, "Degraded"))
 }
 
-func hostedClusterControlPlaneIsAvailable(hc *hypershiftv1beta1.HostedCluster) bool {
-	return (meta.IsStatusConditionTrue(hc.Status.Conditions, "Available") &&
+func hostedClusterIsReady(hc *hypershiftv1beta1.HostedCluster) bool {
+	return (meta.IsStatusConditionTrue(hc.Status.Conditions, "ClusterVersionSucceeding") &&
 		meta.IsStatusConditionFalse(hc.Status.Conditions, "Degraded"))
 }
 
@@ -425,7 +425,12 @@ func (r *ClusterOrderReconciler) handleDelete(ctx context.Context, _ ctrl.Reques
 
 	if ns != nil {
 		// Attempt to delete hostedcluster via webhook
-		if hc, err := r.findHostedCluster(ctx, instance, ns.GetName()); hc != nil {
+		hc, err := r.findHostedCluster(ctx, instance, ns.GetName())
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+
+		if hc != nil {
 			log.Info(fmt.Sprintf("Waiting for HostedCluster %s to delete", hc.GetName()))
 			if url := r.DeleteClusterWebhook; url != "" {
 				val, exists := instance.Annotations[cloudkitManagementStateAnnotation]
