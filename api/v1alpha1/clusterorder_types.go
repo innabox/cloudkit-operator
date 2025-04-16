@@ -31,8 +31,24 @@ type ClusterOrderSpec struct {
 	// +kubebuilder:validation:Type=string
 	// +kubebuilder:validation:Pattern=^[a-zA-Z_][a-zA-Z0-9_]*$
 	TemplateID string `json:"templateID,omitempty"`
+	// TemplateParameters is a JSON-encoded map of the parameter values for the
+	// selected cluster template.
 	// +kubebuilder:validation:Optional
 	TemplateParameters string `json:"templateParameters,omitempty"`
+	// NodeRequests defines the types of nodes and number of each type of node that will be used
+	// to build the cluster. This value is optional and if not provided will be filled in with template-provided
+	// defaults. The selected template may limit what node types you can request.
+	// +kubebuilder:validation:Optional
+	NodeRequests []NodeRequest `json:"nodeRequests,omitempty"`
+}
+
+type NodeRequest struct {
+	// ResourceClass describes the type of node you are requesting
+	// +kubebuilder:validation:Required
+	ResourceClass string `json:"resourceClass"`
+	// NumberOfNodes describes the number of nodes you want of the given resource class
+	// +kubebuilder:validation:Required
+	NumberOfNodes int `json:"numberOfNodes"`
 }
 
 // ClusterOrderPhaseType is a valid value for .status.phase
