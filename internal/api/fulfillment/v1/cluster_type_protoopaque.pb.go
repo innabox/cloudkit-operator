@@ -337,8 +337,8 @@ type ClusterStatus struct {
 	state                 protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_State      ClusterState           `protobuf:"varint,1,opt,name=state,proto3,enum=fulfillment.v1.ClusterState"`
 	xxx_hidden_Conditions *[]*ClusterCondition   `protobuf:"bytes,2,rep,name=conditions,proto3"`
-	xxx_hidden_ApiUrl     string                 `protobuf:"bytes,3,opt,name=api_url,json=apiUrl,proto3"`
-	xxx_hidden_ConsoleUrl string                 `protobuf:"bytes,4,opt,name=console_url,json=consoleUrl,proto3"`
+	xxx_hidden_ApiUrl     string                 `protobuf:"bytes,3,opt,name=api_url,json=apiURL,proto3"`
+	xxx_hidden_ConsoleUrl string                 `protobuf:"bytes,4,opt,name=console_url,json=consoleURL,proto3"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }

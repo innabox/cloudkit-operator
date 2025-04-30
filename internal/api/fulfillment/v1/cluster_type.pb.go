@@ -378,11 +378,11 @@ type ClusterStatus struct {
 	// URL of te API server of the cluster.
 	//
 	// This will be empty if the cluster isn't ready.
-	ApiUrl string `protobuf:"bytes,3,opt,name=api_url,json=apiUrl,proto3" json:"api_url,omitempty"`
+	ApiUrl string `protobuf:"bytes,3,opt,name=api_url,json=apiURL,proto3" json:"api_url,omitempty"`
 	// URL of the console of the cluster.
 	//
 	// This will be empty if the cluster isn't ready or the console isn't enabled.
-	ConsoleUrl    string `protobuf:"bytes,4,opt,name=console_url,json=consoleUrl,proto3" json:"console_url,omitempty"`
+	ConsoleUrl    string `protobuf:"bytes,4,opt,name=console_url,json=consoleURL,proto3" json:"console_url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

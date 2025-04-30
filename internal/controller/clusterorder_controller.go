@@ -198,7 +198,6 @@ func (r *ClusterOrderReconciler) mapObjectToCluster(ctx context.Context, obj cli
 	}
 }
 
-//nolint:unparam
 func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Request, instance *v1alpha1.ClusterOrder) (ctrl.Result, error) {
 	log := ctrllog.FromContext(ctx)
 
@@ -300,7 +299,6 @@ func (r *ClusterOrderReconciler) findNamespace(ctx context.Context, instance *v1
 	return &namespaceList.Items[0], nil
 }
 
-//nolint:unparam
 func (r *ClusterOrderReconciler) handleDelete(ctx context.Context, _ ctrl.Request, instance *v1alpha1.ClusterOrder) (ctrl.Result, error) {
 	log := ctrllog.FromContext(ctx)
 	log.Info(fmt.Sprintf("Deleting ClusterOrder %s", instance.GetName()))

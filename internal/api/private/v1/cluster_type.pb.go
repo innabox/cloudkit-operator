@@ -50,7 +50,7 @@ type Cluster struct {
 	// This is needed because the way to find the Kubernetes `ClusterOrder` object corresponding to this cluster is to
 	// use the `.../clusterorder-uuid` label that was set when it was created, and that contains the identifier of the
 	// cluster order because at that point there is no cluster yet.
-	OrderId       string `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	OrderId       string `protobuf:"bytes,4,opt,name=order_id,json=orderID,proto3" json:"order_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

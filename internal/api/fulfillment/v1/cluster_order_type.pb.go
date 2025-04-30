@@ -507,7 +507,7 @@ type ClusterOrderStatus struct {
 	//
 	// This will be automatically populated by the system when the requested cluster is completely provisoned. Further
 	// details about the cluster, like the API URL, will be available in the corresponding `Cluster` object.
-	ClusterId     string `protobuf:"bytes,3,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	ClusterId     string `protobuf:"bytes,3,opt,name=cluster_id,json=clusterID,proto3" json:"cluster_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

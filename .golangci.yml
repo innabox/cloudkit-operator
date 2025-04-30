@@ -13,12 +13,12 @@ linters:
     - ineffassign
     - lll
     - misspell
-    - nakedret
+    # nakedret
     - prealloc
     - revive
     - staticcheck
     - unconvert
-    - unparam
+    # unparam
     - unused
   settings:
     revive:

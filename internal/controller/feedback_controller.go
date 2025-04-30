@@ -43,7 +43,7 @@ type FeedbackReconciler struct {
 	privateClustersClient privatev1.ClustersClient
 }
 
-// feedbackReconcilerTask contains data that is used for the reconcilation of a specific cluster order, so there is less
+// feedbackReconcilerTask contains data that is used for the reconciliation of a specific cluster order, so there is less
 // need to pass around as function parameters that and other related objects.
 type feedbackReconcilerTask struct {
 	r              *FeedbackReconciler
@@ -81,30 +81,30 @@ func (r *FeedbackReconciler) Reconcile(ctx context.Context, request ctrl.Request
 	err = r.hubClient.Get(ctx, request.NamespacedName, object)
 	if err != nil {
 		err = clnt.IgnoreNotFound(err)
-		return
+		return //nolint:nakedret
 	}
 
 	// Get the identifier of the order from the labels. If this isn't present it means that the object wasn't
 	// created by the fulfillment service, so we ignore it.
-	orderId, ok := object.Labels[cloudkitClusterOrderIdLabel]
+	orderID, ok := object.Labels[cloudkitClusterOrderIDLabel]
 	if !ok {
 		r.logger.Info(
 			"There is no label containing the order identifier, will ignore it",
-			"label", cloudkitClusterOrderIdLabel,
+			"label", cloudkitClusterOrderIDLabel,
 		)
 		return
 	}
 
 	// Fetch all the relevant objects:
-	publicOrder, privateOrder, err := r.fetchOrder(ctx, orderId)
+	publicOrder, privateOrder, err := r.fetchOrder(ctx, orderID)
 	if err != nil {
 		return
 	}
 	var publicCluster *ffv1.Cluster
 	var privateCluster *privatev1.Cluster
-	clusterId := publicOrder.GetStatus().GetClusterId()
-	if clusterId != "" {
-		publicCluster, privateCluster, err = r.fetchCluster(ctx, clusterId)
+	clusterID := publicOrder.GetStatus().GetClusterId()
+	if clusterID != "" {
+		publicCluster, privateCluster, err = r.fetchCluster(ctx, clusterID)
 		if err != nil {
 			return
 		}
@@ -355,13 +355,13 @@ func (t *feedbackReconcilerTask) syncPhaseReady(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	apiUrl := t.calculateApiUrl()
-	if apiUrl != "" {
-		publicClusterStatus.SetApiUrl(apiUrl)
+	apiURL := t.calculateAPIURL()
+	if apiURL != "" {
+		publicClusterStatus.SetApiUrl(apiURL)
 	}
-	consoleUrl := t.calculateConsoleUrl()
-	if consoleUrl != "" {
-		publicClusterStatus.SetConsoleUrl(consoleUrl)
+	consoleURL := t.calculateConsoleURL()
+	if consoleURL != "" {
+		publicClusterStatus.SetConsoleUrl(consoleURL)
 	}
 
 	// Save the hub identifier in the private cluster:
@@ -420,7 +420,7 @@ func (t *feedbackReconcilerTask) fetchHostedCluster(ctx context.Context) error {
 	return nil
 }
 
-func (t *feedbackReconcilerTask) calculateApiUrl() string {
+func (t *feedbackReconcilerTask) calculateAPIURL() string {
 	if t.hostedCluster == nil {
 		return ""
 	}
@@ -431,7 +431,7 @@ func (t *feedbackReconcilerTask) calculateApiUrl() string {
 	return fmt.Sprintf("https://%s:%d", apiEndpoint.Host, apiEndpoint.Port)
 }
 
-func (t *feedbackReconcilerTask) calculateConsoleUrl() string {
+func (t *feedbackReconcilerTask) calculateConsoleURL() string {
 	if t.hostedCluster == nil {
 		return ""
 	}

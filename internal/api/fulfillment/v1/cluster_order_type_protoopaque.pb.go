@@ -411,7 +411,7 @@ type ClusterOrderStatus struct {
 	state                 protoimpl.MessageState    `protogen:"opaque.v1"`
 	xxx_hidden_State      ClusterOrderState         `protobuf:"varint,1,opt,name=state,proto3,enum=fulfillment.v1.ClusterOrderState"`
 	xxx_hidden_Conditions *[]*ClusterOrderCondition `protobuf:"bytes,2,rep,name=conditions,proto3"`
-	xxx_hidden_ClusterId  string                    `protobuf:"bytes,3,opt,name=cluster_id,json=clusterId,proto3"`
+	xxx_hidden_ClusterId  string                    `protobuf:"bytes,3,opt,name=cluster_id,json=clusterID,proto3"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }

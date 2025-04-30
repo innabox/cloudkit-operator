@@ -42,7 +42,7 @@ type Cluster struct {
 	xxx_hidden_Id       string                 `protobuf:"bytes,1,opt,name=id,proto3"`
 	xxx_hidden_Metadata *v1.Metadata           `protobuf:"bytes,2,opt,name=metadata,proto3"`
 	xxx_hidden_HubId    string                 `protobuf:"bytes,3,opt,name=hub_id,json=hubId,proto3"`
-	xxx_hidden_OrderId  string                 `protobuf:"bytes,4,opt,name=order_id,json=orderId,proto3"`
+	xxx_hidden_OrderId  string                 `protobuf:"bytes,4,opt,name=order_id,json=orderID,proto3"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
