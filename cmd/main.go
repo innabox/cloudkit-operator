@@ -18,9 +18,9 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 
@@ -46,7 +46,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	v1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
-	fulfillmentv1 "github.com/innabox/cloudkit-operator/internal/api/fulfillment/v1"
 	"github.com/innabox/cloudkit-operator/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
@@ -267,42 +266,37 @@ func createGrpcConn(plaintext, insecure bool, tokenFile, serverAddress string) (
 
 	// Confgure use of token:
 	if tokenFile != "" {
-		var tokenData []byte
-		tokenData, err = os.ReadFile(tokenFile)
-		if err != nil {
-			return
-		}
-		tokenText := strings.TrimSpace(string(tokenData))
-		token := &oauth2.Token{
-			AccessToken: tokenText,
-		}
-		creds := oauth.TokenSource{
-			TokenSource: oauth2.StaticTokenSource(token),
-		}
-		dialOpts = append(dialOpts, grpc.WithPerRPCCredentials(creds))
+		dialOpts = append(dialOpts, grpc.WithPerRPCCredentials(oauth.TokenSource{
+			TokenSource: &fileTokenSource{
+				tokenFile: tokenFile,
+			},
+		}))
 	}
 
+	// Create the connection:
 	conn, err := grpc.NewClient(serverAddress, dialOpts...)
 	if err != nil {
 		return
 	}
 
-	// TODO: This is a simple operation to operation to verify that the connection is working, should be removed
-	// when the connection is actually used.
-	client := fulfillmentv1.NewClusterTemplatesClient(conn)
-	response, err := client.List(context.TODO(), &fulfillmentv1.ClusterTemplatesListRequest{})
+	result = conn
+	return
+}
+
+// fileTokenSource is a token source that reads the token from a file whenever it is needed.
+type fileTokenSource struct {
+	tokenFile string
+}
+
+func (s *fileTokenSource) Token() (token *oauth2.Token, err error) {
+	var data []byte
+	data, err = os.ReadFile(s.tokenFile)
 	if err != nil {
+		err = fmt.Errorf("failed to read token from file '%s': %w", s.tokenFile, err)
 		return
 	}
-	for _, item := range response.Items {
-		setupLog.Info(
-			"Available template",
-			"id", item.Id,
-			"title", item.Title,
-			"description", item.Description,
-		)
+	token = &oauth2.Token{
+		AccessToken: strings.TrimSpace(string(data)),
 	}
-
-	result = conn
 	return
 }
