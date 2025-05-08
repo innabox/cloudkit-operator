@@ -243,6 +243,10 @@ func (t *feedbackReconcilerTask) handleUpdate(ctx context.Context) (result ctrl.
 	if err != nil {
 		return
 	}
+	err = t.syncNodeRequests()
+	if err != nil {
+		return
+	}
 	return
 }
 
@@ -380,6 +384,64 @@ func (t *feedbackReconcilerTask) syncPhaseReady(ctx context.Context) error {
 	// Save the order and hub identifiers in the private cluster:
 	t.privateCluster.SetOrderId(t.publicOrder.GetId())
 	t.privateCluster.SetHubId(t.privateOrder.GetHubId())
+
+	return nil
+}
+
+func (t *feedbackReconcilerTask) syncNodeRequests() error {
+	for i := range len(t.object.Status.NodeRequests) {
+		err := t.syncNodeRequest(&t.object.Status.NodeRequests[i])
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (t *feedbackReconcilerTask) syncNodeRequest(nodeRequest *ckv1alpha1.NodeRequest) error {
+	// Find a matching node set in the spec of the cluster:
+	var nodeSetID string
+	for candidateNodeSetID, candidateNodeSet := range t.publicCluster.GetSpec().GetNodeSets() {
+		if candidateNodeSet.GetHostClass() == nodeRequest.ResourceClass {
+			nodeSetID = candidateNodeSetID
+			break
+		}
+	}
+	if nodeSetID == "" {
+		t.r.logger.Error(
+			nil,
+			"Failed to find a matching node set",
+			"resource_class", nodeRequest.ResourceClass,
+		)
+		return nil
+	}
+
+	// Find or create the matching node set in the status of the cluster:
+	nodeSets := t.publicCluster.GetStatus().GetNodeSets()
+	if nodeSets == nil {
+		nodeSets = map[string]*ffv1.ClusterNodeSet{}
+		t.publicCluster.GetStatus().SetNodeSets(nodeSets)
+	}
+	nodeSet := nodeSets[nodeSetID]
+	if nodeSet == nil {
+		nodeSet = ffv1.ClusterNodeSet_builder{
+			HostClass: nodeRequest.ResourceClass,
+		}.Build()
+		nodeSets[nodeSetID] = nodeSet
+	}
+
+	// Copy the number of nodes:
+	oldValue := nodeSet.GetSize()
+	newValue := int32(nodeRequest.NumberOfNodes)
+	if newValue != oldValue {
+		t.r.logger.Info(
+			"Updating node set size",
+			"resource_class", nodeRequest.ResourceClass,
+			"old_value", oldValue,
+			"new_value", newValue,
+		)
+		nodeSet.SetSize(newValue)
+	}
 
 	return nil
 }
