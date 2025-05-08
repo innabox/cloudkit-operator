@@ -242,6 +242,10 @@ func (t *feedbackReconcilerTask) handleUpdate(ctx context.Context) (result ctrl.
 	if err != nil {
 		return
 	}
+	err = t.syncNodeCounts()
+	if err != nil {
+		return
+	}
 	return
 }
 
@@ -366,6 +370,64 @@ func (t *feedbackReconcilerTask) syncPhaseReady(ctx context.Context) error {
 
 	// Save the hub identifier in the private cluster:
 	t.privateCluster.SetHubId(t.privateOrder.GetHubId())
+
+	return nil
+}
+
+func (t *feedbackReconcilerTask) syncNodeCounts() error {
+	for i := range len(t.object.Status.NodeCounts) {
+		err := t.syncNodeCount(&t.object.Status.NodeCounts[i])
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (t *feedbackReconcilerTask) syncNodeCount(nodeCount *ckv1alpha1.NodeRequest) error {
+	// Find a matching node set in the spec of the cluster:
+	var nodeSetID string
+	for candidateNodeSetID, candidateNodeSet := range t.publicCluster.GetSpec().GetNodeSets() {
+		if candidateNodeSet.GetHostClass() == nodeCount.ResourceClass {
+			nodeSetID = candidateNodeSetID
+			break
+		}
+	}
+	if nodeSetID == "" {
+		t.r.logger.Error(
+			nil,
+			"Failed to find a matching node set",
+			"resource_class", nodeCount.ResourceClass,
+		)
+		return nil
+	}
+
+	// Find or create the matching node set in the status of the cluster:
+	nodeSets := t.publicCluster.GetStatus().GetNodeSets()
+	if nodeSets == nil {
+		nodeSets = map[string]*ffv1.ClusterNodeSet{}
+		t.publicCluster.GetStatus().SetNodeSets(nodeSets)
+	}
+	nodeSet := nodeSets[nodeSetID]
+	if nodeSet == nil {
+		nodeSet = ffv1.ClusterNodeSet_builder{
+			HostClass: nodeCount.ResourceClass,
+		}.Build()
+		nodeSets[nodeSetID] = nodeSet
+	}
+
+	// Copy the number of nodes:
+	oldValue := nodeSet.GetSize()
+	newValue := int32(nodeCount.NumberOfNodes)
+	if newValue != oldValue {
+		t.r.logger.Info(
+			"Updating node set size",
+			"resource_class", nodeCount.ResourceClass,
+			"old_value", oldValue,
+			"new_value", newValue,
+		)
+		nodeSet.SetSize(newValue)
+	}
 
 	return nil
 }
