@@ -29,7 +29,7 @@ type ClusterOrderSpec struct {
 	// TemplateID is the unique identigier of the cluster template to use when creating this cluster
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Pattern=^[a-zA-Z_][a-zA-Z0-9_]*$
+	// +kubebuilder:validation:Pattern=^[a-zA-Z_][a-zA-Z0-9._]*$
 	TemplateID string `json:"templateID,omitempty"`
 	// TemplateParameters is a JSON-encoded map of the parameter values for the
 	// selected cluster template.
