@@ -377,7 +377,8 @@ func (t *feedbackReconcilerTask) syncPhaseReady(ctx context.Context) error {
 		publicClusterStatus.SetConsoleUrl(consoleURL)
 	}
 
-	// Save the hub identifier in the private cluster:
+	// Save the order and hub identifiers in the private cluster:
+	t.privateCluster.SetOrderId(t.publicOrder.GetId())
 	t.privateCluster.SetHubId(t.privateOrder.GetHubId())
 
 	return nil
