@@ -13,8 +13,41 @@ import (
 	cloudkitv1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
 )
 
-func triggerWebHook(ctx context.Context, url string, instance *cloudkitv1alpha1.ClusterOrder) error {
+var inflightRequests map[string]time.Time
+
+const DefaultRequestInterval string = "5m"
+
+type ErrMinInterval struct {
+	RemainingTime string
+}
+
+func (e *ErrMinInterval) Error() string {
+	return fmt.Sprintf("request inside the minimum request interval of %v", string(e.RemainingTime))
+}
+
+func triggerWebHook(ctx context.Context, url string, instance *cloudkitv1alpha1.ClusterOrder, minimumRequestInterval string) error {
 	log := ctrllog.FromContext(ctx)
+
+	if inflightTime, found := inflightRequests[url]; found {
+		minDelta, err := time.ParseDuration(minimumRequestInterval)
+		if err != nil {
+			log.Info("Invalid minimum request interval.  Setting it to the default.", "MinimumRequestInterval", DefaultRequestInterval, "")
+			minDelta, _ = time.ParseDuration(DefaultRequestInterval)
+		}
+
+		delta := time.Since(inflightTime)
+		if delta < minDelta {
+			log.Info("Tring to call webhook too soon.", "url",
+				url, "minInterval", minimumRequestInterval, "delta",
+				delta, "inflightTime", inflightTime)
+			return &ErrMinInterval{
+				RemainingTime: string(delta),
+			}
+		}
+
+		delete(inflightRequests, url)
+	}
+
 	log.Info("Triggering webhook " + url)
 
 	jsonData, err := json.Marshal(instance)
@@ -41,5 +74,6 @@ func triggerWebHook(ctx context.Context, url string, instance *cloudkitv1alpha1.
 		return fmt.Errorf("received non-success status code: %d", resp.StatusCode)
 	}
 
+	inflightRequests[url] = time.Now()
 	return nil
 }

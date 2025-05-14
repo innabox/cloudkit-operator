@@ -64,10 +64,11 @@ func (r *ClusterOrderReconciler) components() []component {
 // ClusterOrderReconciler reconciles a ClusterOrder object
 type ClusterOrderReconciler struct {
 	client.Client
-	Scheme                *runtime.Scheme
-	CreateClusterWebhook  string
-	DeleteClusterWebhook  string
-	ClusterOrderNamespace string
+	Scheme                 *runtime.Scheme
+	CreateClusterWebhook   string
+	DeleteClusterWebhook   string
+	ClusterOrderNamespace  string
+	MinimumRequestInterval string
 }
 
 func NewClusterOrderReconciler(
@@ -76,16 +77,19 @@ func NewClusterOrderReconciler(
 	createClusterWebhook string,
 	deleteClusterWebhook string,
 	clusterOrderNamespace string,
+	minimumRequestInterval string,
 ) *ClusterOrderReconciler {
 	if clusterOrderNamespace == "" {
 		clusterOrderNamespace = defaultClusterOrderNamespace
 	}
+
 	return &ClusterOrderReconciler{
-		Client:                client,
-		Scheme:                scheme,
-		CreateClusterWebhook:  createClusterWebhook,
-		DeleteClusterWebhook:  deleteClusterWebhook,
-		ClusterOrderNamespace: clusterOrderNamespace,
+		Client:                 client,
+		Scheme:                 scheme,
+		CreateClusterWebhook:   createClusterWebhook,
+		DeleteClusterWebhook:   deleteClusterWebhook,
+		ClusterOrderNamespace:  clusterOrderNamespace,
+		MinimumRequestInterval: minimumRequestInterval,
 	}
 }
 
@@ -245,7 +249,7 @@ func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Reques
 	} else {
 		// only trigger webhook if the hostedcluster does not exist
 		if url := r.CreateClusterWebhook; url != "" {
-			if err := triggerWebHook(ctx, url, instance); err != nil {
+			if err := triggerWebHook(ctx, url, instance, r.MinimumRequestInterval); err != nil {
 				log.Error(err, fmt.Sprintf("Failed to trigger webhook %s: %v", url, err))
 				return ctrl.Result{Requeue: true}, nil
 			}
@@ -312,7 +316,7 @@ func (r *ClusterOrderReconciler) handleDelete(ctx context.Context, _ ctrl.Reques
 	if hc, err := r.findHostedCluster(ctx, instance); hc != nil {
 		log.Info(fmt.Sprintf("Waiting for HostedCluster %s to delete", hc.GetName()))
 		if url := r.DeleteClusterWebhook; url != "" {
-			if err := triggerWebHook(ctx, url, instance); err != nil {
+			if err := triggerWebHook(ctx, url, instance, r.MinimumRequestInterval); err != nil {
 				log.Error(err, fmt.Sprintf("Failed to trigger webhook %s: %v", url, err))
 				return ctrl.Result{Requeue: true}, nil
 			}
