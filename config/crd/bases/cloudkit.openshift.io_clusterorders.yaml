@@ -154,6 +154,24 @@ spec:
                   - type
                   type: object
                 type: array
+              nodeCounts:
+                description: NodeCount shows how many nodes are currently associated
+                  with the ClusterOrder
+                items:
+                  properties:
+                    numberOfNodes:
+                      description: NumberOfNodes describes the number of nodes you
+                        want of the given resource class
+                      type: integer
+                    resourceClass:
+                      description: ResourceClass describes the type of node you are
+                        requesting
+                      type: string
+                  required:
+                  - numberOfNodes
+                  - resourceClass
+                  type: object
+                type: array
               phase:
                 description: Phase provides a single-value overview of the state of
                   the ClusterOrder
