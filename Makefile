@@ -46,6 +46,8 @@ ifeq ($(USE_IMAGE_DIGESTS), true)
 	BUNDLE_GEN_FLAGS += --use-image-digests
 endif
 
+CLOUDKIT_DEV_NAMESPACE ?= cloudkit-operator-dev
+
 # Set the Operator SDK version to use. By default, what is installed on the system is used.
 # This is useful for CI or a project to utilize a specific version of the operator-sdk toolkit.
 OPERATOR_SDK_VERSION ?= v1.39.1
@@ -152,6 +154,13 @@ image-build: ## Build container image with the manager.
 .PHONY: image-push
 image-push: ## Push container image with the manager.
 	$(CONTAINER_TOOL) push ${IMG}
+
+.PHONY: image-run
+image-run: ## Run container image locally.
+	$(CONTAINER_TOOL) run --rm --userns keep-id --name cloudkit-controller \
+		-v ${HOME}/.kube:/.kube -e HOME=/ \
+		-e CLOUDKIT_CLUSTER_ORDER_NAMESPACE=$(CLOUDKIT_DEV_NAMESPACE) \
+		${IMG}
 
 .PHONY: kind-load
 kind-load: image-build
