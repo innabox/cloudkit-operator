@@ -173,6 +173,11 @@ func (r *ClusterOrderReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.mapObjectToCluster),
 			builder.WithPredicates(labelPredicate),
 		).
+		Watches(
+			&hypershiftv1beta1.NodePool{},
+			handler.EnqueueRequestsFromMapFunc(r.mapObjectToCluster),
+			builder.WithPredicates(labelPredicate),
+		).
 		Complete(r)
 }
 
@@ -234,24 +239,115 @@ func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Reques
 	instance.SetStatusCondition(v1alpha1.ConditionNamespaceCreated, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
 
 	if hc, _ := r.findHostedCluster(ctx, instance); hc != nil {
-		name := hc.GetName()
-		instance.SetClusterReferenceHostedClusterName(name)
-		instance.SetStatusCondition(v1alpha1.ConditionControlPlaneCreated, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
+		return r.handleHostedCluster(ctx, instance, hc)
+	}
+	return r.handleNoHostedCluster(ctx, instance)
+}
 
-		if controlPlaneIsAvailable(hc) {
-			instance.SetStatusCondition(v1alpha1.ConditionControlPlaneAvailable, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
-			instance.SetPhase(v1alpha1.ClusterOrderPhaseReady)
-		}
-	} else {
-		// only trigger webhook if the hostedcluster does not exist
-		if url := r.CreateClusterWebhook; url != "" {
-			if err := triggerWebHook(ctx, url, instance); err != nil {
-				log.Error(err, fmt.Sprintf("Failed to trigger webhook %s: %v", url, err))
-				return ctrl.Result{Requeue: true}, nil
-			}
-		}
+func (r *ClusterOrderReconciler) handleHostedCluster(ctx context.Context, instance *v1alpha1.ClusterOrder,
+	hc *hypershiftv1beta1.HostedCluster) (ctrl.Result, error) {
+
+	name := hc.GetName()
+	instance.SetClusterReferenceHostedClusterName(name)
+	instance.SetStatusCondition(v1alpha1.ConditionControlPlaneCreated, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
+
+	if controlPlaneIsAvailable(hc) {
+		instance.SetStatusCondition(v1alpha1.ConditionControlPlaneAvailable, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
+		instance.SetPhase(v1alpha1.ClusterOrderPhaseReady)
 	}
 
+	// Fetch the node pools and handle them:
+	nodePools := &hypershiftv1beta1.NodePoolList{}
+	err := r.Client.List(
+		ctx,
+		nodePools,
+		client.InNamespace(hc.Namespace),
+		client.MatchingLabels{
+			cloudkitClusterOrderNameLabel: hc.Name,
+		},
+	)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	err = r.handleNodePools(ctx, instance, nodePools)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, nil
+}
+
+func (r *ClusterOrderReconciler) handleNodePools(ctx context.Context, instance *v1alpha1.ClusterOrder,
+	nodePools *hypershiftv1beta1.NodePoolList) error {
+	for i := range len(nodePools.Items) {
+		err := r.handleNodePool(ctx, instance, &nodePools.Items[i])
+		if err != nil {
+			return fmt.Errorf("failed to handle node pool %d: %w", i, err)
+		}
+	}
+	return nil
+}
+
+func (r *ClusterOrderReconciler) handleNodePool(ctx context.Context, instance *v1alpha1.ClusterOrder,
+	nodePool *hypershiftv1beta1.NodePool) error {
+	logger := ctrllog.FromContext(ctx)
+
+	// TODO: Currently there is no way to know what is the item of the `nodeRequests` field that corresponds to a
+	// node pool. The best we can do is check if there is exactly one, and then assume that this node pool
+	// corresponds to that node request.
+	nodeRequestsCount := len(instance.Spec.NodeRequests)
+	if nodeRequestsCount != 1 {
+		logger.Info(
+			"Expected exactly one node request, will ignore the node pool",
+			"node_pool", nodePool.Name,
+			"node_requests", nodeRequestsCount,
+		)
+		return nil
+	}
+
+	// Find the matching item inside the `nodeRequests` field of the status, or create a new one if there is no
+	// matching item yet.
+	resourceClass := instance.Spec.NodeRequests[0].ResourceClass
+	var nodeRequestStatus *v1alpha1.NodeRequest
+	for i, nodeRequestsItem := range instance.Status.NodeRequests {
+		if nodeRequestsItem.ResourceClass == resourceClass {
+			nodeRequestStatus = &instance.Status.NodeRequests[i]
+		}
+	}
+	if nodeRequestStatus == nil {
+		instance.Spec.NodeRequests = append(instance.Spec.NodeRequests, v1alpha1.NodeRequest{
+			ResourceClass: resourceClass,
+		})
+		nodeRequestStatus = &instance.Spec.NodeRequests[len(instance.Spec.NodeRequests)-1]
+	}
+
+	// Update the selected `nodeRequests` item:
+	oldValue := nodeRequestStatus.NumberOfNodes
+	newValue := int(nodePool.Status.Replicas)
+	if newValue != oldValue {
+		logger.Info(
+			"Updating number of nodes from node pool",
+			"node_pool", nodePool.Name,
+			"resource_class", resourceClass,
+			"old_value", oldValue,
+			"new_value", newValue,
+		)
+		nodeRequestStatus.NumberOfNodes = newValue
+	}
+
+	return nil
+}
+
+func (r *ClusterOrderReconciler) handleNoHostedCluster(ctx context.Context,
+	instance *v1alpha1.ClusterOrder) (ctrl.Result, error) {
+	log := ctrllog.FromContext(ctx)
+
+	// only trigger webhook if the hostedcluster does not exist
+	if url := r.CreateClusterWebhook; url != "" {
+		if err := triggerWebHook(ctx, url, instance); err != nil {
+			log.Error(err, fmt.Sprintf("Failed to trigger webhook %s: %v", url, err))
+			return ctrl.Result{Requeue: true}, nil
+		}
+	}
 	return ctrl.Result{}, nil
 }
 
