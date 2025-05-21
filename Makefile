@@ -149,7 +149,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 image-build: ## Build container image with the manager.
 	$(CONTAINER_TOOL) build -t ${IMG} -f ${CONTAINERFILE} .
 
-.PHONY: docker-push
+.PHONY: image-push
 image-push: ## Push container image with the manager.
 	$(CONTAINER_TOOL) push ${IMG}
 
