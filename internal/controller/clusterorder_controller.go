@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -107,12 +108,6 @@ func (r *ClusterOrderReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// FIXME: This is probably the wrong solution.
-	if instance.GetNamespace() != r.ClusterOrderNamespace {
-		log.Info(fmt.Sprintf("Ignoring clusterorder %s in namespace %s", instance.GetName(), instance.GetNamespace()))
-		return ctrl.Result{}, nil
-	}
-
 	log.Info(fmt.Sprintf("Start reconcile for %s", instance.GetName()))
 
 	oldstatus := instance.Status.DeepCopy()
@@ -137,6 +132,24 @@ func (r *ClusterOrderReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	return res, err
 }
 
+func NamespacePredicate(namespace string) predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return e.Object.GetNamespace() == namespace
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return e.ObjectNew.GetNamespace() == namespace
+			// You might also want to check e.ObjectOld if relevant for your logic
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return e.Object.GetNamespace() == namespace
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			return e.Object.GetNamespace() == namespace
+		},
+	}
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterOrderReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	labelPredicate, err := predicate.LabelSelectorPredicate(metav1.LabelSelector{
@@ -152,7 +165,7 @@ func (r *ClusterOrderReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.ClusterOrder{}).
+		For(&v1alpha1.ClusterOrder{}, builder.WithPredicates(NamespacePredicate(r.ClusterOrderNamespace))).
 		Watches(
 			&corev1.Namespace{},
 			handler.EnqueueRequestsFromMapFunc(r.mapObjectToCluster),
