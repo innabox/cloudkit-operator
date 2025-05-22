@@ -251,7 +251,12 @@ func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Reques
 
 	instance.SetStatusCondition(v1alpha1.ConditionNamespaceCreated, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
 
-	if hc, _ := r.findHostedCluster(ctx, instance); hc != nil {
+	ns, err := r.findNamespace(ctx, instance)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if hc, _ := r.findHostedCluster(ctx, instance, ns.GetName()); hc != nil {
 		return r.handleHostedCluster(ctx, instance, hc)
 	}
 	return r.handleNoHostedCluster(ctx, instance)
@@ -276,14 +281,7 @@ func (r *ClusterOrderReconciler) handleHostedCluster(ctx context.Context, instan
 
 	// Fetch the node pools and handle them:
 	nodePools := &hypershiftv1beta1.NodePoolList{}
-	err := r.Client.List(
-		ctx,
-		nodePools,
-		client.InNamespace(hc.Namespace),
-		client.MatchingLabels{
-			cloudkitClusterOrderNameLabel: hc.Name,
-		},
-	)
+	err := r.List(ctx, nodePools, client.InNamespace(hc.Namespace), labelSelectorFromInstance(instance))
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -379,11 +377,11 @@ func controlPlaneIsAvailable(hc *hypershiftv1beta1.HostedCluster) bool {
 		meta.IsStatusConditionFalse(hc.Status.Conditions, "Degraded"))
 }
 
-func (r *ClusterOrderReconciler) findHostedCluster(ctx context.Context, instance *v1alpha1.ClusterOrder) (*hypershiftv1beta1.HostedCluster, error) {
+func (r *ClusterOrderReconciler) findHostedCluster(ctx context.Context, instance *v1alpha1.ClusterOrder, nsName string) (*hypershiftv1beta1.HostedCluster, error) {
 	log := ctrllog.FromContext(ctx)
 
 	var hostedClusterList hypershiftv1beta1.HostedClusterList
-	if err := r.List(ctx, &hostedClusterList, labelSelectorFromInstance(instance)); err != nil {
+	if err := r.List(ctx, &hostedClusterList, client.InNamespace(nsName), labelSelectorFromInstance(instance)); err != nil {
 		log.Error(err, "Failed to list hosted clusters")
 		return nil, err
 	}
@@ -427,20 +425,25 @@ func (r *ClusterOrderReconciler) handleDelete(ctx context.Context, _ ctrl.Reques
 		return ctrl.Result{}, nil
 	}
 
-	// Wait until HostedCluster has been deleted
-	if hc, err := r.findHostedCluster(ctx, instance); hc != nil {
-		log.Info(fmt.Sprintf("Waiting for HostedCluster %s to delete", hc.GetName()))
-		if url := r.DeleteClusterWebhook; url != "" {
-			if err := triggerWebHook(ctx, url, instance); err != nil {
-				log.Error(err, fmt.Sprintf("Failed to trigger webhook %s: %v", url, err))
-				return ctrl.Result{Requeue: true}, nil
-			}
-		}
+	ns, err := r.findNamespace(ctx, instance)
+	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	// Wait until Namespace has been deleted
-	if ns, err := r.findNamespace(ctx, instance); ns != nil {
+	if ns != nil {
+		// Attempt to delete hostedcluster via webhook
+		if hc, err := r.findHostedCluster(ctx, instance, ns.GetName()); hc != nil {
+			log.Info(fmt.Sprintf("Waiting for HostedCluster %s to delete", hc.GetName()))
+			if url := r.DeleteClusterWebhook; url != "" {
+				if err := triggerWebHook(ctx, url, instance); err != nil {
+					log.Error(err, fmt.Sprintf("Failed to trigger webhook %s: %v", url, err))
+					return ctrl.Result{Requeue: true}, nil
+				}
+			}
+			return ctrl.Result{}, err
+		}
+
+		// Delete working namespace
 		log.Info(fmt.Sprintf("Deleting namespace %s for %s", ns.GetName(), instance.GetName()))
 		if err := r.Client.Delete(ctx, ns); err != nil {
 			log.Error(err, fmt.Sprintf("Failed to delete namespace %s", ns.GetName()))
@@ -449,6 +452,7 @@ func (r *ClusterOrderReconciler) handleDelete(ctx context.Context, _ ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
+	// Allow kubernetes to delete the clusterorder
 	if controllerutil.RemoveFinalizer(instance, cloudkitFinalizer) {
 		if err := r.Update(ctx, instance); err != nil {
 			return ctrl.Result{}, err
