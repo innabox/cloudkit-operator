@@ -324,6 +324,9 @@ func (t *feedbackReconcilerTask) syncPhase(ctx context.Context) error {
 		return t.syncPhaseFailed()
 	case ckv1alpha1.ClusterOrderPhaseReady:
 		return t.syncPhaseReady(ctx)
+	case ckv1alpha1.ClusterOrderPhaseDeleting:
+		// TODO: There is no equivalent phase.
+		// return t.syncPhaseDeleting(ctx)
 	default:
 		t.r.logger.Info(
 			"Unknown phase, will ignore it",
@@ -331,6 +334,7 @@ func (t *feedbackReconcilerTask) syncPhase(ctx context.Context) error {
 		)
 		return nil
 	}
+	return nil
 }
 
 func (t *feedbackReconcilerTask) syncPhaseAccepted() error {

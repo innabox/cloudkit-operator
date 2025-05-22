@@ -215,6 +215,7 @@ func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Reques
 	log := ctrllog.FromContext(ctx)
 
 	r.initializeStatusConditions(instance)
+	instance.Status.Phase = v1alpha1.ClusterOrderPhaseProgressing
 
 	if controllerutil.AddFinalizer(instance, cloudkitFinalizer) {
 		if err := r.Update(ctx, instance); err != nil {
@@ -274,14 +275,13 @@ func (r *ClusterOrderReconciler) handleHostedCluster(ctx context.Context, instan
 	instance.SetClusterReferenceHostedClusterName(name)
 	instance.SetStatusCondition(v1alpha1.ConditionControlPlaneCreated, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
 
-	if controlPlaneIsAvailable(hc) {
-		instance.SetStatusCondition(v1alpha1.ConditionControlPlaneAvailable, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
-		instance.SetPhase(v1alpha1.ClusterOrderPhaseReady)
-	}
-
-	if hostedClusterIsReady(hc) {
-		instance.SetStatusCondition(string(v1alpha1.ClusterOrderPhaseCompleted), metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
-		instance.SetPhase(v1alpha1.ClusterOrderPhaseCompleted)
+	if hostedClusterControlPlaneIsAvailable(hc) {
+		if hostedClusterIsReady(hc) {
+			instance.SetStatusCondition(v1alpha1.ConditionClusterAvailable, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
+			instance.Status.Phase = v1alpha1.ClusterOrderPhaseReady
+		} else {
+			instance.SetStatusCondition(v1alpha1.ConditionControlPlaneAvailable, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
+		}
 	}
 
 	// Fetch the node pools and handle them:
@@ -363,7 +363,7 @@ func hostedClusterIsReady(hc *hypershiftv1beta1.HostedCluster) bool {
 		meta.IsStatusConditionFalse(hc.Status.Conditions, "Degraded"))
 }
 
-func controlPlaneIsAvailable(hc *hypershiftv1beta1.HostedCluster) bool {
+func hostedClusterControlPlaneIsAvailable(hc *hypershiftv1beta1.HostedCluster) bool {
 	return (meta.IsStatusConditionTrue(hc.Status.Conditions, "Available") &&
 		meta.IsStatusConditionFalse(hc.Status.Conditions, "Degraded"))
 }
@@ -411,6 +411,8 @@ func (r *ClusterOrderReconciler) findNamespace(ctx context.Context, instance *v1
 func (r *ClusterOrderReconciler) handleDelete(ctx context.Context, _ ctrl.Request, instance *v1alpha1.ClusterOrder) (ctrl.Result, error) {
 	log := ctrllog.FromContext(ctx)
 	log.Info(fmt.Sprintf("Deleting ClusterOrder %s", instance.GetName()))
+
+	instance.Status.Phase = v1alpha1.ClusterOrderPhaseDeleting
 
 	if !controllerutil.ContainsFinalizer(instance, cloudkitFinalizer) {
 		return ctrl.Result{}, nil

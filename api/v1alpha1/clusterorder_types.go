@@ -55,10 +55,7 @@ type NodeRequest struct {
 type ClusterOrderPhaseType string
 
 const (
-	// ClusterOrderPhaseUnknown is the zero value of .status.phase
-	ClusterOrderPhaseUnknown ClusterOrderPhaseType = "Unknown"
-
-	// ClusterOrderPhaseAccepted means the order has been accepted but work has not yet started
+	// ClusterOrderPhaseAccepted means the controller has received the ClusterOrder but has not started work
 	ClusterOrderPhaseAccepted ClusterOrderPhaseType = "Accepted"
 
 	// ClusterOrderPhaseProgressing means an update is in progress
@@ -70,8 +67,8 @@ const (
 	// ClusterOrderPhaseReady means the cluster and all associated resources are ready
 	ClusterOrderPhaseReady ClusterOrderPhaseType = "Ready"
 
-	// ClusterOrderPhaseCompleted means the cluster is completely ready for use
-	ClusterOrderPhaseCompleted ClusterOrderPhaseType = "Completed"
+	// ClusterOrderPhaseReady means the cluster and all associated resources are ready
+	ClusterOrderPhaseDeleting ClusterOrderPhaseType = "Deleting"
 )
 
 // ClusterOrderConditionType is a valid value for .status.conditions.type
@@ -105,7 +102,7 @@ type ClusterOrderStatus struct {
 	// Phase provides a single-value overview of the state of the ClusterOrder
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Enum=Unknown;Accepted;Progressing;Failed;Ready
+	// +kubebuilder:validation:Enum=Unknown;Progressing;Failed;Ready;Deleting
 	Phase ClusterOrderPhaseType `json:"phase,omitempty"`
 
 	// Conditions holds an array of metav1.Condition that describe the state of the ClusterOrder
@@ -140,10 +137,6 @@ type ClusterOrderList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ClusterOrder `json:"items"`
-}
-
-func (co *ClusterOrder) SetPhase(phase ClusterOrderPhaseType) {
-	co.Status.Phase = phase
 }
 
 func init() {
