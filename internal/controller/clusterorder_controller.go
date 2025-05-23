@@ -64,10 +64,11 @@ func (r *ClusterOrderReconciler) components() []component {
 // ClusterOrderReconciler reconciles a ClusterOrder object
 type ClusterOrderReconciler struct {
 	client.Client
-	Scheme                *runtime.Scheme
-	CreateClusterWebhook  string
-	DeleteClusterWebhook  string
-	ClusterOrderNamespace string
+	Scheme                 *runtime.Scheme
+	CreateClusterWebhook   string
+	DeleteClusterWebhook   string
+	ClusterOrderNamespace  string
+	MinimumRequestInterval string
 }
 
 func NewClusterOrderReconciler(
@@ -80,6 +81,7 @@ func NewClusterOrderReconciler(
 	if clusterOrderNamespace == "" {
 		clusterOrderNamespace = defaultClusterOrderNamespace
 	}
+
 	return &ClusterOrderReconciler{
 		Client:                client,
 		Scheme:                scheme,
@@ -348,10 +350,18 @@ func (r *ClusterOrderReconciler) handleNoHostedCluster(ctx context.Context,
 
 	// only trigger webhook if the hostedcluster does not exist
 	if url := r.CreateClusterWebhook; url != "" {
-		if err := triggerWebHook(ctx, url, instance); err != nil {
+		remainingTime, err := triggerWebHook(ctx, url, instance, r.MinimumRequestInterval)
+		if err != nil {
 			log.Error(err, fmt.Sprintf("Failed to trigger webhook %s: %v", url, err))
 			return ctrl.Result{Requeue: true}, nil
 		}
+
+		// Verify if we are within the minimum request window
+		if remainingTime != 0 {
+			return ctrl.Result{RequeueAfter: remainingTime}, nil
+		}
+		log.Error(err, fmt.Sprintf("Failed to trigger webhook %s: %v", url, err))
+		return ctrl.Result{Requeue: true}, nil
 	}
 	return ctrl.Result{}, nil
 }
@@ -418,9 +428,15 @@ func (r *ClusterOrderReconciler) handleDelete(ctx context.Context, _ ctrl.Reques
 	if hc, err := r.findHostedCluster(ctx, instance); hc != nil {
 		log.Info(fmt.Sprintf("Waiting for HostedCluster %s to delete", hc.GetName()))
 		if url := r.DeleteClusterWebhook; url != "" {
-			if err := triggerWebHook(ctx, url, instance); err != nil {
+			remainingTime, err := triggerWebHook(ctx, url, instance, r.MinimumRequestInterval)
+			if err != nil {
 				log.Error(err, fmt.Sprintf("Failed to trigger webhook %s: %v", url, err))
 				return ctrl.Result{Requeue: true}, nil
+			}
+
+			// Verify if we are within the minimum request window
+			if remainingTime != 0 {
+				return ctrl.Result{RequeueAfter: remainingTime}, nil
 			}
 		}
 		return ctrl.Result{}, err
