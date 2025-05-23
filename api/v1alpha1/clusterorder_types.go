@@ -55,12 +55,6 @@ type NodeRequest struct {
 type ClusterOrderPhaseType string
 
 const (
-	// ClusterOrderPhaseUnknown is the zero value of .status.phase
-	ClusterOrderPhaseUnknown ClusterOrderPhaseType = "Unknown"
-
-	// ClusterOrderPhaseAccepted means the order has been accepted but work has not yet started
-	ClusterOrderPhaseAccepted ClusterOrderPhaseType = "Accepted"
-
 	// ClusterOrderPhaseProgressing means an update is in progress
 	ClusterOrderPhaseProgressing ClusterOrderPhaseType = "Progressing"
 
@@ -70,8 +64,8 @@ const (
 	// ClusterOrderPhaseReady means the cluster and all associated resources are ready
 	ClusterOrderPhaseReady ClusterOrderPhaseType = "Ready"
 
-	// ClusterOrderPhaseCompleted means the cluster is completely ready for use
-	ClusterOrderPhaseCompleted ClusterOrderPhaseType = "Completed"
+	// ClusterOrderPhaseDeleting means there has been a request to delete the ClusterOrder
+	ClusterOrderPhaseDeleting ClusterOrderPhaseType = "Deleting"
 )
 
 // ClusterOrderConditionType is a valid value for .status.conditions.type
@@ -105,7 +99,7 @@ type ClusterOrderStatus struct {
 	// Phase provides a single-value overview of the state of the ClusterOrder
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Enum=Unknown;Accepted;Progressing;Failed;Ready
+	// +kubebuilder:validation:Enum=Progressing;Failed;Ready;Deleting
 	Phase ClusterOrderPhaseType `json:"phase,omitempty"`
 
 	// Conditions holds an array of metav1.Condition that describe the state of the ClusterOrder
@@ -123,6 +117,8 @@ type ClusterOrderStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:shortName=cord
+// +kubebuilder:printcolumn:name="Template",type=string,JSONPath=`.spec.templateID`
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 
 // ClusterOrder is the Schema for the clusterorders API
 type ClusterOrder struct {
@@ -144,6 +140,10 @@ type ClusterOrderList struct {
 
 func (co *ClusterOrder) SetPhase(phase ClusterOrderPhaseType) {
 	co.Status.Phase = phase
+}
+
+func (co *ClusterOrder) GetPhase() ClusterOrderPhaseType {
+	return co.Status.Phase
 }
 
 func init() {

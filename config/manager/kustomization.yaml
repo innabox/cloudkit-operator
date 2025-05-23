@@ -5,4 +5,4 @@ resources:
 images:
 - name: controller
   newName: ghcr.io/innabox/cloudkit-operator
-  newTag: latest
+  newTag: devel

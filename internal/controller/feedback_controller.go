@@ -316,14 +316,15 @@ func (t *feedbackReconcilerTask) mapConditionStatus(status metav1.ConditionStatu
 
 func (t *feedbackReconcilerTask) syncPhase(ctx context.Context) error {
 	switch t.object.Status.Phase {
-	case ckv1alpha1.ClusterOrderPhaseAccepted:
-		return t.syncPhaseAccepted()
 	case ckv1alpha1.ClusterOrderPhaseProgressing:
 		return t.syncPhaseProgressing()
 	case ckv1alpha1.ClusterOrderPhaseFailed:
 		return t.syncPhaseFailed()
 	case ckv1alpha1.ClusterOrderPhaseReady:
 		return t.syncPhaseReady(ctx)
+	case ckv1alpha1.ClusterOrderPhaseDeleting:
+		// TODO: There is no equivalent phase.
+		// return t.syncPhaseDeleting(ctx)
 	default:
 		t.r.logger.Info(
 			"Unknown phase, will ignore it",
@@ -331,10 +332,6 @@ func (t *feedbackReconcilerTask) syncPhase(ctx context.Context) error {
 		)
 		return nil
 	}
-}
-
-func (t *feedbackReconcilerTask) syncPhaseAccepted() error {
-	t.publicOrder.GetStatus().SetState(ffv1.ClusterOrderState_CLUSTER_ORDER_STATE_PROGRESSING)
 	return nil
 }
 

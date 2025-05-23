@@ -16,7 +16,14 @@ spec:
     singular: clusterorder
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.templateID
+      name: Template
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: ClusterOrder is the Schema for the clusterorders API
@@ -176,11 +183,10 @@ spec:
                 description: Phase provides a single-value overview of the state of
                   the ClusterOrder
                 enum:
-                - Unknown
-                - Accepted
                 - Progressing
                 - Failed
                 - Ready
+                - Deleting
                 type: string
             type: object
         type: object
