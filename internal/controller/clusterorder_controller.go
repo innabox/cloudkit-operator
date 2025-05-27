@@ -256,10 +256,17 @@ func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
+	if url := r.CreateClusterWebhook; url != "" {
+		if err := triggerWebHook(ctx, url, instance); err != nil {
+			log.Error(err, fmt.Sprintf("Failed to trigger webhook %s: %v", url, err))
+			return ctrl.Result{Requeue: true}, nil
+		}
+	}
+
 	if hc, _ := r.findHostedCluster(ctx, instance, ns.GetName()); hc != nil {
 		return r.handleHostedCluster(ctx, instance, hc)
 	}
-	return r.handleNoHostedCluster(ctx, instance)
+	return ctrl.Result{}, nil
 }
 
 func (r *ClusterOrderReconciler) handleHostedCluster(ctx context.Context, instance *v1alpha1.ClusterOrder,
@@ -351,20 +358,6 @@ func (r *ClusterOrderReconciler) handleNodePool(ctx context.Context, instance *v
 	}
 
 	return nil
-}
-
-func (r *ClusterOrderReconciler) handleNoHostedCluster(ctx context.Context,
-	instance *v1alpha1.ClusterOrder) (ctrl.Result, error) {
-	log := ctrllog.FromContext(ctx)
-
-	// only trigger webhook if the hostedcluster does not exist
-	if url := r.CreateClusterWebhook; url != "" {
-		if err := triggerWebHook(ctx, url, instance); err != nil {
-			log.Error(err, fmt.Sprintf("Failed to trigger webhook %s: %v", url, err))
-			return ctrl.Result{Requeue: true}, nil
-		}
-	}
-	return ctrl.Result{}, nil
 }
 
 func hostedClusterIsReady(hc *hypershiftv1beta1.HostedCluster) bool {
