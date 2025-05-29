@@ -6,4 +6,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: clusterorder-sample
 spec:
-  # TODO(user): Add fields here
+  templateID: cloudkit.templates.ocp_4_17_small
+  nodeRequests:
+  - resourceClass: fc430
+    numberOfNodes: 2
