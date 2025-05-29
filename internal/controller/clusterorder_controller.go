@@ -32,7 +32,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -139,21 +138,11 @@ func (r *ClusterOrderReconciler) Reconcile(ctx context.Context, req ctrl.Request
 }
 
 func NamespacePredicate(namespace string) predicate.Predicate {
-	return predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			return e.Object.GetNamespace() == namespace
+	return predicate.NewPredicateFuncs(
+		func(obj client.Object) bool {
+			return obj.GetNamespace() == namespace
 		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			return e.ObjectNew.GetNamespace() == namespace
-			// You might also want to check e.ObjectOld if relevant for your logic
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			return e.Object.GetNamespace() == namespace
-		},
-		GenericFunc: func(e event.GenericEvent) bool {
-			return e.Object.GetNamespace() == namespace
-		},
-	}
+	)
 }
 
 // SetupWithManager sets up the controller with the Manager.
