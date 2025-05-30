@@ -258,6 +258,10 @@ func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
+	if hc, _ := r.findHostedCluster(ctx, instance, ns.GetName()); hc != nil {
+		return r.handleHostedCluster(ctx, instance, hc)
+	}
+
 	if url := r.CreateClusterWebhook; url != "" {
 		val, exists := instance.Annotations[cloudkitManagementStateAnnotation]
 		if exists && val == "manual" {
@@ -277,25 +281,26 @@ func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Reques
 		}
 	}
 
-	if hc, _ := r.findHostedCluster(ctx, instance, ns.GetName()); hc != nil {
-		return r.handleHostedCluster(ctx, instance, hc)
-	}
 	return ctrl.Result{}, nil
 }
 
 func (r *ClusterOrderReconciler) handleHostedCluster(ctx context.Context, instance *v1alpha1.ClusterOrder,
 	hc *hypershiftv1beta1.HostedCluster) (ctrl.Result, error) {
 
+	log := ctrllog.FromContext(ctx)
+
 	name := hc.GetName()
 	instance.SetClusterReferenceHostedClusterName(name)
 	instance.SetStatusCondition(v1alpha1.ConditionControlPlaneCreated, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
 
 	if hostedClusterControlPlaneIsAvailable(hc) {
+		log.Info("hosted control plane is available", "clusterorder", instance.GetName())
+		instance.SetStatusCondition(v1alpha1.ConditionControlPlaneAvailable, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
+
 		if hostedClusterIsReady(hc) {
+			log.Info("hosted cluster is ready", "clusterorder", instance.GetName())
 			instance.SetStatusCondition(v1alpha1.ConditionClusterAvailable, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
 			instance.Status.Phase = v1alpha1.ClusterOrderPhaseReady
-		} else {
-			instance.SetStatusCondition(v1alpha1.ConditionControlPlaneAvailable, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
 		}
 	}
 
