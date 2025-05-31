@@ -21,7 +21,7 @@ func (r *ClusterOrderReconciler) newNamespace(ctx context.Context, instance *v1a
 	var namespaceName string
 
 	if err := r.List(ctx, &namespaceList, labelSelectorFromInstance(instance)); err != nil {
-		log.Error(err, "Failed to list namespaces")
+		log.Error(err, "failed to list namespaces")
 		return nil, err
 	}
 

@@ -45,7 +45,7 @@ func addInflightRequest(ctx context.Context, url string, minimumRequestInterval 
 	inflightRequests[url] = InflightRequest{
 		createTime: time.Now(),
 	}
-	log.Info(fmt.Sprintf("Adding %s to cache", url))
+	log.Info("added url to cache", "url", url)
 	inflightRequestsLock.Unlock()
 	purgeExpiredRequests(ctx, minimumRequestInterval)
 }
@@ -57,7 +57,7 @@ func purgeExpiredRequests(ctx context.Context, minimumRequestInterval time.Durat
 	inflightRequestsLock.RLock()
 	for url, request := range inflightRequests {
 		if delta := time.Since(request.createTime); delta > minimumRequestInterval {
-			log.Info(fmt.Sprintf("Found %s with a delta of %d", url, delta))
+			log.Info("found url in cache", "url", url, "delta", delta)
 			expiredRequests = append(expiredRequests, url)
 		}
 	}
@@ -66,7 +66,7 @@ func purgeExpiredRequests(ctx context.Context, minimumRequestInterval time.Durat
 	if len(expiredRequests) > 0 {
 		inflightRequestsLock.Lock()
 		for _, url := range expiredRequests {
-			log.Info(fmt.Sprintf("Deleting %s from cache", url))
+			log.Info("removing url from cache", "url", url)
 			delete(inflightRequests, url)
 		}
 		inflightRequestsLock.Unlock()
@@ -81,7 +81,7 @@ func triggerWebHook(ctx context.Context, url string, instance *cloudkitv1alpha1.
 		return delta, nil
 	}
 
-	log.Info("Triggering webhook " + url)
+	log.Info("triggering webhook", "url", url)
 
 	jsonData, err := json.Marshal(instance)
 	if err != nil {

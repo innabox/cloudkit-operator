@@ -115,11 +115,11 @@ func (r *ClusterOrderReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	val, exists := instance.Annotations[cloudkitManagementStateAnnotation]
 	if exists && val == "unmanaged" {
-		log.Info(fmt.Sprintf("Ignoring ClusterOrder %s because of annotation", instance.GetName()))
+		log.Info("ignoring ClusterOrder due to management-state annotation", "management-state", val)
 		return ctrl.Result{}, nil
 	}
 
-	log.Info(fmt.Sprintf("Start reconcile for %s", instance.GetName()))
+	log.Info("start reconcile")
 
 	oldstatus := instance.Status.DeepCopy()
 
@@ -132,14 +132,14 @@ func (r *ClusterOrderReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	if err == nil {
 		if !equality.Semantic.DeepEqual(instance.Status, oldstatus) {
-			log.Info(fmt.Sprintf("Update status for %s", instance.GetName()))
+			log.Info("status requires update")
 			if err := r.Status().Update(ctx, instance); err != nil {
 				return res, err
 			}
 		}
 	}
 
-	log.Info(fmt.Sprintf("End reconcile for %s", instance.GetName()))
+	log.Info("end reconcile")
 	return res, err
 }
 
@@ -205,7 +205,12 @@ func (r *ClusterOrderReconciler) mapObjectToCluster(ctx context.Context, obj cli
 		return nil
 	}
 
-	log.Info("Selecting " + obj.GetName())
+	log.Info("mapped change notification",
+		"kind", obj.GetObjectKind().GroupVersionKind().Kind,
+		"namespace", obj.GetNamespace(),
+		"name", obj.GetName(),
+		"clusterorder", clusterOrderName,
+	)
 
 	return []reconcile.Request{
 		{
@@ -230,24 +235,24 @@ func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Reques
 	}
 
 	for _, component := range r.components() {
-		log.Info("Handling component " + component.name)
+		log.Info("handling component", "component", component.name)
 
 		resource, err := component.fn(ctx, instance)
 		if err != nil {
-			log.Error(err, fmt.Sprintf("Failed to mutate resource %s", component.name))
+			log.Error(err, "failed to mutate resource", "component", component.name)
 			return ctrl.Result{}, err
 		}
 
 		result, err := controllerutil.CreateOrUpdate(ctx, r.Client, resource.object, resource.mutateFn)
 		if err != nil {
-			log.Error(err, "Failed to create or update "+component.name)
+			log.Error(err, "failed to create or update component", "component", component.name)
 			return ctrl.Result{}, err
 		}
 		switch result {
 		case controllerutil.OperationResultCreated:
-			log.Info(fmt.Sprintf("Created %s for %s", component.name, instance.GetName()))
+			log.Info("created component", "component", component.name)
 		case controllerutil.OperationResultUpdated:
-			log.Info(fmt.Sprintf("Updated %s for %s", component.name, instance.GetName()))
+			log.Info("updated component", "component", component.name)
 		}
 	}
 
@@ -267,17 +272,17 @@ func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Reques
 	if url := r.CreateClusterWebhook; url != "" {
 		val, exists := instance.Annotations[cloudkitManagementStateAnnotation]
 		if exists && val == "manual" {
-			log.Info(fmt.Sprintf("Not triggering create webhook for ClusterOrder %s because of annotation", instance.GetName()))
+			log.Info("not triggering create webhook due to management-state annotation", "url", url, "management-state", val)
 		} else {
 			remainingTime, err := triggerWebHook(ctx, url, instance, r.MinimumRequestInterval)
 			if err != nil {
-				log.Error(err, fmt.Sprintf("Failed to trigger webhook %s: %v", url, err))
+				log.Error(err, "failed to trigger webhook", "url", url, "error", err)
 				return ctrl.Result{Requeue: true}, nil
 			}
 
 			// Verify if we are within the minimum request window
 			if remainingTime != 0 {
-				log.Info(fmt.Sprintf("Request %s is within minimumRequestInterval", url))
+				log.Info("request is within minimum request window", "url", url)
 				return ctrl.Result{RequeueAfter: remainingTime}, nil
 			}
 		}
@@ -330,15 +335,15 @@ func (r *ClusterOrderReconciler) handleNodePools(ctx context.Context, instance *
 
 func (r *ClusterOrderReconciler) handleNodePool(ctx context.Context, instance *v1alpha1.ClusterOrder,
 	nodePool *hypershiftv1beta1.NodePool) error {
-	logger := ctrllog.FromContext(ctx)
+	log := ctrllog.FromContext(ctx)
 
 	// TODO: Currently there is no way to know what is the item of the `nodeRequests` field that corresponds to a
 	// node pool. The best we can do is check if there is exactly one, and then assume that this node pool
 	// corresponds to that node request.
 	nodeRequestsCount := len(instance.Spec.NodeRequests)
 	if nodeRequestsCount != 1 {
-		logger.Info(
-			"Expected exactly one node request, will ignore the node pool",
+		log.Info(
+			"expected exactly one node request, will ignore the node pool",
 			"node_pool", nodePool.Name,
 			"node_requests", nodeRequestsCount,
 		)
@@ -365,8 +370,8 @@ func (r *ClusterOrderReconciler) handleNodePool(ctx context.Context, instance *v
 	oldValue := nodeRequestStatus.NumberOfNodes
 	newValue := int(nodePool.Status.Replicas)
 	if newValue != oldValue {
-		logger.Info(
-			"Updating number of nodes from node pool",
+		log.Info(
+			"updating number of nodes from node pool",
 			"node_pool", nodePool.Name,
 			"resource_class", resourceClass,
 			"old_value", oldValue,
@@ -393,7 +398,7 @@ func (r *ClusterOrderReconciler) findHostedCluster(ctx context.Context, instance
 
 	var hostedClusterList hypershiftv1beta1.HostedClusterList
 	if err := r.List(ctx, &hostedClusterList, client.InNamespace(nsName), labelSelectorFromInstance(instance)); err != nil {
-		log.Error(err, "Failed to list hosted clusters")
+		log.Error(err, "failed to list hosted clusters")
 		return nil, err
 	}
 
@@ -413,7 +418,7 @@ func (r *ClusterOrderReconciler) findNamespace(ctx context.Context, instance *v1
 
 	var namespaceList corev1.NamespaceList
 	if err := r.List(ctx, &namespaceList, labelSelectorFromInstance(instance)); err != nil {
-		log.Error(err, "Failed to list namespaces")
+		log.Error(err, "failed to list namespaces")
 		return nil, err
 	}
 
@@ -430,7 +435,7 @@ func (r *ClusterOrderReconciler) findNamespace(ctx context.Context, instance *v1
 
 func (r *ClusterOrderReconciler) handleDelete(ctx context.Context, _ ctrl.Request, instance *v1alpha1.ClusterOrder) (ctrl.Result, error) {
 	log := ctrllog.FromContext(ctx)
-	log.Info(fmt.Sprintf("Deleting ClusterOrder %s", instance.GetName()))
+	log.Info("deleting clusterorder")
 
 	instance.Status.Phase = v1alpha1.ClusterOrderPhaseDeleting
 
@@ -451,15 +456,15 @@ func (r *ClusterOrderReconciler) handleDelete(ctx context.Context, _ ctrl.Reques
 		}
 
 		if hc != nil {
-			log.Info(fmt.Sprintf("Waiting for HostedCluster %s to delete", hc.GetName()))
+			log.Info("waiting for hostedcluster to delete", "hostedcluster", hc.GetName())
 			if url := r.DeleteClusterWebhook; url != "" {
 				val, exists := instance.Annotations[cloudkitManagementStateAnnotation]
 				if exists && val == "manual" {
-					log.Info(fmt.Sprintf("Not triggering delete webhook for ClusterOrder %s because of annotation", instance.GetName()))
+					log.Info("not triggering delete webhook due to management-state annotation", "url", url, "management-state", val)
 				} else {
 					remainingTime, err := triggerWebHook(ctx, url, instance, r.MinimumRequestInterval)
 					if err != nil {
-						log.Error(err, fmt.Sprintf("Failed to trigger webhook %s: %v", url, err))
+						log.Error(err, "failed to trigger webhook", "url", url, "error", err)
 						return ctrl.Result{Requeue: true}, nil
 					}
 
@@ -472,9 +477,9 @@ func (r *ClusterOrderReconciler) handleDelete(ctx context.Context, _ ctrl.Reques
 		}
 
 		// Delete working namespace
-		log.Info(fmt.Sprintf("Deleting namespace %s for %s", ns.GetName(), instance.GetName()))
+		log.Info("deleting cluster namespace", "namespace", ns.GetName())
 		if err := r.Client.Delete(ctx, ns); err != nil {
-			log.Error(err, fmt.Sprintf("Failed to delete namespace %s", ns.GetName()))
+			log.Error(err, "failed to delete namespace", "namespace", ns.GetName(), "error", err)
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, err
