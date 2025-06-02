@@ -41,7 +41,6 @@ type FeedbackReconciler struct {
 	privateOrdersClient   privatev1.ClusterOrdersClient
 	publicClustersClient  ffv1.ClustersClient
 	privateClustersClient privatev1.ClustersClient
-	publicTemplatesClient ffv1.ClusterTemplatesClient
 }
 
 // feedbackReconcilerTask contains data that is used for the reconciliation of a specific cluster order, so there is less
@@ -65,7 +64,6 @@ func NewFeedbackReconciler(logger logr.Logger, hubClient clnt.Client, grpcConn *
 		privateOrdersClient:   privatev1.NewClusterOrdersClient(grpcConn),
 		publicClustersClient:  ffv1.NewClustersClient(grpcConn),
 		privateClustersClient: privatev1.NewClustersClient(grpcConn),
-		publicTemplatesClient: ffv1.NewClusterTemplatesClient(grpcConn),
 	}
 }
 
@@ -446,73 +444,32 @@ func (t *feedbackReconcilerTask) syncNodeRequest(nodeRequest *ckv1alpha1.NodeReq
 }
 
 func (t *feedbackReconcilerTask) createCluster(ctx context.Context) error {
-	// Prepare the cluster:
-	publicCluster := ffv1.Cluster_builder{
-		Spec:   ffv1.ClusterSpec_builder{}.Build(),
-		Status: ffv1.ClusterStatus_builder{}.Build(),
-	}.Build()
-
-	// Copy the initial node sets from the template:
-	getTemplateResponse, err := t.r.publicTemplatesClient.Get(ctx, ffv1.ClusterTemplatesGetRequest_builder{
-		Id: t.publicOrder.GetSpec().GetTemplateId(),
+	// Create the empty cluster:
+	publicResponse, err := t.r.publicClustersClient.Create(ctx, ffv1.ClustersCreateRequest_builder{
+		Object: ffv1.Cluster_builder{
+			Spec:   &ffv1.ClusterSpec{},
+			Status: &ffv1.ClusterStatus{},
+		}.Build(),
 	}.Build())
 	if err != nil {
 		return err
 	}
-	template := getTemplateResponse.GetObject()
-	clusterNodeSets, err := t.prepareNodeSets(ctx, template)
-	if err != nil {
-		return err
-	}
-	publicCluster.GetSpec().SetNodeSets(clusterNodeSets)
-
-	// Create the cluster:
-	getPublicClusterResponse, err := t.r.publicClustersClient.Create(ctx, ffv1.ClustersCreateRequest_builder{
-		Object: publicCluster,
-	}.Build())
-	if err != nil {
-		return err
-	}
-	publicCluster = getPublicClusterResponse.GetObject()
+	public := publicResponse.GetObject()
 
 	// The private cluster will be created automatically by the server, so we only need to fetch it:
-	getPrivateClusterResponse, err := t.r.privateClustersClient.Get(ctx, privatev1.ClustersGetRequest_builder{
-		Id: publicCluster.GetId(),
+	privateResponse, err := t.r.privateClustersClient.Get(ctx, privatev1.ClustersGetRequest_builder{
+		Id: public.GetId(),
 	}.Build())
 	if err != nil {
 		return err
 	}
-	privateCluster := getPrivateClusterResponse.GetObject()
+	private := privateResponse.GetObject()
 
 	// Save the results:
-	t.publicCluster = publicCluster
-	t.privateCluster = privateCluster
+	t.publicCluster = public
+	t.privateCluster = private
 
 	return nil
-}
-
-func (t *feedbackReconcilerTask) prepareNodeSets(ctx context.Context,
-	template *ffv1.ClusterTemplate) (result map[string]*ffv1.ClusterNodeSet, err error) {
-	clusterNodeSets := map[string]*ffv1.ClusterNodeSet{}
-	for nodeSetKey, templateNodeSet := range template.GetNodeSets() {
-		var clusterNodeSet *ffv1.ClusterNodeSet
-		clusterNodeSet, err = t.prepareNodeSet(ctx, templateNodeSet)
-		if err != nil {
-			return
-		}
-		clusterNodeSets[nodeSetKey] = clusterNodeSet
-	}
-	result = clusterNodeSets
-	return
-}
-
-func (t *feedbackReconcilerTask) prepareNodeSet(ctx context.Context,
-	templateNodeSet *ffv1.ClusterTemplateNodeSet) (result *ffv1.ClusterNodeSet, err error) {
-	result = ffv1.ClusterNodeSet_builder{
-		HostClass: templateNodeSet.GetHostClass(),
-		Size:      templateNodeSet.GetSize(),
-	}.Build()
-	return
 }
 
 func (t *feedbackReconcilerTask) fetchHostedCluster(ctx context.Context) error {
