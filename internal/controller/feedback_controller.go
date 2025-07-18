@@ -34,10 +34,9 @@ import (
 
 // FeedbackReconciler sends updates to the fulfillment service.
 type FeedbackReconciler struct {
-	logger          logr.Logger
-	hubClient       clnt.Client
-	clustersClient  privatev1.ClustersClient
-	templatesClient privatev1.ClusterTemplatesClient
+	logger         logr.Logger
+	hubClient      clnt.Client
+	clustersClient privatev1.ClustersClient
 }
 
 // feedbackReconcilerTask contains data that is used for the reconciliation of a specific cluster order, so there is less
@@ -52,10 +51,9 @@ type feedbackReconcilerTask struct {
 // NewFeedbackReconciler creates a reconciler that sends to the fulfillment service updates about cluster orders.
 func NewFeedbackReconciler(logger logr.Logger, hubClient clnt.Client, grpcConn *grpc.ClientConn) *FeedbackReconciler {
 	return &FeedbackReconciler{
-		logger:          logger,
-		hubClient:       hubClient,
-		clustersClient:  privatev1.NewClustersClient(grpcConn),
-		templatesClient: privatev1.NewClusterTemplatesClient(grpcConn),
+		logger:         logger,
+		hubClient:      hubClient,
+		clustersClient: privatev1.NewClustersClient(grpcConn),
 	}
 }
 
