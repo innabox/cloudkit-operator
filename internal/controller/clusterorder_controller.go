@@ -205,6 +205,25 @@ func (r *ClusterOrderReconciler) mapObjectToCluster(ctx context.Context, obj cli
 		return nil
 	}
 
+	// Verify that the referenced ClusterOrder exists in this controller's namespace
+	// to filter out notifications for resources managed by other controller instances
+	clusterOrder := &v1alpha1.ClusterOrder{}
+	key := client.ObjectKey{
+		Name:      clusterOrderName,
+		Namespace: r.ClusterOrderNamespace,
+	}
+	if err := r.Get(ctx, key, clusterOrder); err != nil {
+		// ClusterOrder doesn't exist in our namespace, ignore this notification
+		log.V(1).Info("ignoring notification for resource not managed by this controller instance",
+			"kind", obj.GetObjectKind().GroupVersionKind().Kind,
+			"namespace", obj.GetNamespace(),
+			"name", obj.GetName(),
+			"clusterorder", clusterOrderName,
+			"controller_namespace", r.ClusterOrderNamespace,
+		)
+		return nil
+	}
+
 	log.Info("mapped change notification",
 		"kind", obj.GetObjectKind().GroupVersionKind().Kind,
 		"namespace", obj.GetNamespace(),
@@ -214,10 +233,7 @@ func (r *ClusterOrderReconciler) mapObjectToCluster(ctx context.Context, obj cli
 
 	return []reconcile.Request{
 		{
-			NamespacedName: client.ObjectKey{
-				Name:      clusterOrderName,
-				Namespace: r.ClusterOrderNamespace,
-			},
+			NamespacedName: key,
 		},
 	}
 }
