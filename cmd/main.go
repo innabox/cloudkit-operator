@@ -204,6 +204,7 @@ func main() {
 			ctrl.Log.WithName("feedback"),
 			mgr.GetClient(),
 			grpcConn,
+			os.Getenv("CLOUDKIT_CLUSTER_ORDER_NAMESPACE"),
 		)).SetupWithManager(mgr); err != nil {
 			setupLog.Error(
 				err,

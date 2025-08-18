@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	clnt "sigs.k8s.io/controller-runtime/pkg/client"
 
 	ckv1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
@@ -34,9 +35,10 @@ import (
 
 // FeedbackReconciler sends updates to the fulfillment service.
 type FeedbackReconciler struct {
-	logger         logr.Logger
-	hubClient      clnt.Client
-	clustersClient privatev1.ClustersClient
+	logger                logr.Logger
+	hubClient             clnt.Client
+	clustersClient        privatev1.ClustersClient
+	clusterOrderNamespace string
 }
 
 // feedbackReconcilerTask contains data that is used for the reconciliation of a specific cluster order, so there is less
@@ -49,11 +51,12 @@ type feedbackReconcilerTask struct {
 }
 
 // NewFeedbackReconciler creates a reconciler that sends to the fulfillment service updates about cluster orders.
-func NewFeedbackReconciler(logger logr.Logger, hubClient clnt.Client, grpcConn *grpc.ClientConn) *FeedbackReconciler {
+func NewFeedbackReconciler(logger logr.Logger, hubClient clnt.Client, grpcConn *grpc.ClientConn, clusterOrderNamespace string) *FeedbackReconciler {
 	return &FeedbackReconciler{
-		logger:         logger,
-		hubClient:      hubClient,
-		clustersClient: privatev1.NewClustersClient(grpcConn),
+		logger:                logger,
+		hubClient:             hubClient,
+		clustersClient:        privatev1.NewClustersClient(grpcConn),
+		clusterOrderNamespace: clusterOrderNamespace,
 	}
 }
 
@@ -61,7 +64,7 @@ func NewFeedbackReconciler(logger logr.Logger, hubClient clnt.Client, grpcConn *
 func (r *FeedbackReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("clusterorder-feedback").
-		For(&ckv1alpha1.ClusterOrder{}).
+		For(&ckv1alpha1.ClusterOrder{}, builder.WithPredicates(NamespacePredicate(r.clusterOrderNamespace))).
 		Complete(r)
 }
 
