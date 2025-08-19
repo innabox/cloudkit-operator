@@ -23,31 +23,31 @@ var (
 	inflightRequests     map[string]InflightRequest = make(map[string]InflightRequest)
 )
 
-func checkForExistingRequest(ctx context.Context, url string, minimumRequestInterval time.Duration) time.Duration {
+func checkForExistingRequest(ctx context.Context, clusterOrderName string, minimumRequestInterval time.Duration) time.Duration {
 	var delta time.Duration
 
 	log := ctrllog.FromContext(ctx)
 	inflightRequestsLock.RLock()
-	request, ok := inflightRequests[url]
+	request, ok := inflightRequests[clusterOrderName]
 	if ok {
 		delta = time.Since(request.createTime)
 		if delta >= minimumRequestInterval {
 			delta = 0
 		}
-		log.Info("skip webhook (url found in cache)", "url", url, "delta", delta, "minimumRequestInterval", minimumRequestInterval)
+		log.Info("skip webhook (cluster order found in cache)", "clusterOrder", clusterOrderName, "delta", delta, "minimumRequestInterval", minimumRequestInterval)
 	}
 	inflightRequestsLock.RUnlock()
 	purgeExpiredRequests(ctx, minimumRequestInterval)
 	return delta
 }
 
-func addInflightRequest(ctx context.Context, url string, minimumRequestInterval time.Duration) {
+func addInflightRequest(ctx context.Context, clusterOrderName string, minimumRequestInterval time.Duration) {
 	log := ctrllog.FromContext(ctx)
 	inflightRequestsLock.Lock()
-	inflightRequests[url] = InflightRequest{
+	inflightRequests[clusterOrderName] = InflightRequest{
 		createTime: time.Now(),
 	}
-	log.Info("add webhook to cache", "url", url)
+	log.Info("add webhook to cache", "clusterOrder", clusterOrderName)
 	inflightRequestsLock.Unlock()
 	purgeExpiredRequests(ctx, minimumRequestInterval)
 }
@@ -57,18 +57,18 @@ func purgeExpiredRequests(ctx context.Context, minimumRequestInterval time.Durat
 
 	log := ctrllog.FromContext(ctx)
 	inflightRequestsLock.RLock()
-	for url, request := range inflightRequests {
+	for clusterOrderName, request := range inflightRequests {
 		if delta := time.Since(request.createTime); delta > minimumRequestInterval {
-			expiredRequests = append(expiredRequests, url)
+			expiredRequests = append(expiredRequests, clusterOrderName)
 		}
 	}
 	inflightRequestsLock.RUnlock()
 
 	if len(expiredRequests) > 0 {
 		inflightRequestsLock.Lock()
-		for _, url := range expiredRequests {
-			log.Info("expire cache entry for webhook", "url", url, "minimumRequestInterval", minimumRequestInterval)
-			delete(inflightRequests, url)
+		for _, clusterOrderName := range expiredRequests {
+			log.Info("expire cache entry for webhook", "clusterOrder", clusterOrderName, "minimumRequestInterval", minimumRequestInterval)
+			delete(inflightRequests, clusterOrderName)
 		}
 		inflightRequestsLock.Unlock()
 	}
@@ -78,7 +78,7 @@ func triggerWebHook(ctx context.Context, url string, instance *cloudkitv1alpha1.
 
 	log := ctrllog.FromContext(ctx)
 
-	if delta := checkForExistingRequest(ctx, url, minimumRequestInterval); delta != 0 {
+	if delta := checkForExistingRequest(ctx, instance.Name, minimumRequestInterval); delta != 0 {
 		return delta, nil
 	}
 
@@ -108,6 +108,6 @@ func triggerWebHook(ctx context.Context, url string, instance *cloudkitv1alpha1.
 		return 0, fmt.Errorf("received non-success status code: %d", resp.StatusCode)
 	}
 
-	addInflightRequest(ctx, url, minimumRequestInterval)
+	addInflightRequest(ctx, instance.Name, minimumRequestInterval)
 	return 0, nil
 }
