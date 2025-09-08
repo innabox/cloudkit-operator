@@ -20,4 +20,13 @@ resources:
   kind: ClusterOrder
   path: github.com/innabox/cloudkit-operator/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: openshift.io
+  group: cloudkit
+  kind: VirtualMachine
+  path: github.com/innabox/cloudkit-operator/api/v1alpha1
+  version: v1alpha1
 version: "3"
