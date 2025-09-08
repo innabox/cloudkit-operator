@@ -36,31 +36,58 @@ type VirtualMachineSpec struct {
 	TemplateParameters string `json:"templateParameters,omitempty"`
 }
 
+// VirtualMachinePhaseType is a valid value for .status.phase
+type VirtualMachinePhaseType string
+
+const (
+	// VirtualMachinePhaseProgressing means an update is in progress
+	VirtualMachinePhaseProgressing VirtualMachinePhaseType = "Progressing"
+
+	// VirtualMachinePhaseFailed means the virtual machine deployment or update has failed
+	VirtualMachinePhaseFailed VirtualMachinePhaseType = "Failed"
+
+	// VirtualMachinePhaseReady means the virtual machine and all associated resources are ready
+	VirtualMachinePhaseReady VirtualMachinePhaseType = "Ready"
+
+	// VirtualMachinePhaseDeleting means there has been a request to delete the VirtualMachine
+	VirtualMachinePhaseDeleting VirtualMachinePhaseType = "Deleting"
+)
+
+// VirtualMachineConditionType is a valid value for .status.conditions.type
+type VirtualMachineConditionType string
+
+const (
+	// VirtualMachineConditionAccepted means the order has been accepted but work has not yet started
+	VirtualMachineConditionAccepted VirtualMachineConditionType = "Accepted"
+
+	// VirtualMachineConditionProgressing means that an update is in progress
+	VirtualMachineConditionProgressing VirtualMachineConditionType = "Progressing"
+
+	// VirtualMachineConditionAvailable means the virtual machine is available
+	VirtualMachineConditionAvailable VirtualMachineConditionType = "Available"
+
+	// VirtualMachineConditionDeleting means the virtual machine is being deleted
+	VirtualMachineConditionDeleting VirtualMachineConditionType = "Deleting"
+)
+
 // VirtualMachineStatus defines the observed state of VirtualMachine.
 type VirtualMachineStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Phase provides a single-value overview of the state of the VirtualMachine
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:Enum=Progressing;Failed;Ready;Deleting
+	Phase VirtualMachinePhaseType `json:"phase,omitempty"`
 
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
-
-	// conditions represent the current state of the VirtualMachine resource.
-	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
-	//
-	// Standard condition types include:
-	// - "Available": the resource is fully functional
-	// - "Progressing": the resource is being created or updated
-	// - "Degraded": the resource failed to reach or maintain its desired state
-	//
-	// The status of each condition is one of True, False, or Unknown.
-	// +listType=map
-	// +listMapKey=type
-	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	// Conditions holds an array of metav1.Condition that describe the state of the VirtualMachine
+	// +kubebuilder:validation:Optional
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:shortName=vm
+// +kubebuilder:printcolumn:name="Template",type=string,JSONPath=`.spec.templateID`
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 
 // VirtualMachine is the Schema for the virtualmachines API
 type VirtualMachine struct {

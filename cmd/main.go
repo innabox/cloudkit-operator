@@ -242,12 +242,33 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := (&controller.VirtualMachineReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
+	if err = (controller.NewVirtualMachineReconciler(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		os.Getenv("CLOUDKIT_VM_CREATE_WEBHOOK"),
+		os.Getenv("CLOUDKIT_VM_DELETE_WEBHOOK"),
+		os.Getenv("CLOUDKIT_VM_NAMESPACE"),
+		interval,
+	)).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "VirtualMachine")
 		os.Exit(1)
+	}
+
+	// Create the VirtualMachine feedback reconciler if gRPC connection is available:
+	if grpcConn != nil {
+		if err = (controller.NewVirtualMachineFeedbackReconciler(
+			ctrl.Log.WithName("virtualmachine-feedback"),
+			mgr.GetClient(),
+			grpcConn,
+			os.Getenv("CLOUDKIT_VM_NAMESPACE"),
+		)).SetupWithManager(mgr); err != nil {
+			setupLog.Error(
+				err,
+				"unable to create virtualmachine feedback controller",
+				"controller", "VirtualMachineFeedback",
+			)
+			os.Exit(1)
+		}
 	}
 	// +kubebuilder:scaffold:builder
 
