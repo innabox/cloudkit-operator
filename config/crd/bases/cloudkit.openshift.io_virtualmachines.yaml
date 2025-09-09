@@ -131,6 +131,25 @@ spec:
                 - Ready
                 - Deleting
                 type: string
+              virtualMachineReference:
+                description: Reference to the namespace that contains VirtualMachine
+                  resources
+                properties:
+                  kubeVirtVirtalMachineName:
+                    type: string
+                  namespace:
+                    description: Namespace that contains the VirtualMachine resources
+                    type: string
+                  roleBindingName:
+                    type: string
+                  serviceAccountName:
+                    type: string
+                required:
+                - kubeVirtVirtalMachineName
+                - namespace
+                - roleBindingName
+                - serviceAccountName
+                type: object
             type: object
         required:
         - spec

@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/innabox/cloudkit-operator/api/v1alpha1"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 )
 
 // NewVMComponentFn is the type of a function that creates a required component
@@ -246,6 +247,12 @@ func (r *VirtualMachineReconciler) handleUpdate(ctx context.Context, _ ctrl.Requ
 		return ctrl.Result{}, err
 	}
 
+	if kv, _ := r.findKubeVirtVMs(ctx, instance, ns.GetName()); kv != nil {
+		if err := r.handleKubeVirtVM(ctx, instance, kv); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
 	if ns != nil {
 		instance.SetStatusCondition(v1alpha1.VirtualMachineConditionAvailable, metav1.ConditionTrue, "", "AsExpected")
 		instance.Status.Phase = v1alpha1.VirtualMachinePhaseReady
@@ -346,19 +353,19 @@ func (r *VirtualMachineReconciler) initializeStatusConditions(instance *v1alpha1
 		instance,
 		v1alpha1.VirtualMachineConditionAccepted,
 		metav1.ConditionTrue,
-		"Initialized",
+		v1alpha1.ReasonInitialized,
 	)
 	r.initializeStatusCondition(
 		instance,
 		v1alpha1.VirtualMachineConditionDeleting,
 		metav1.ConditionFalse,
-		"Initialized",
+		v1alpha1.ReasonInitialized,
 	)
 	r.initializeStatusCondition(
 		instance,
 		v1alpha1.VirtualMachineConditionProgressing,
 		metav1.ConditionTrue,
-		"Progressing",
+		v1alpha1.ReasonInitialized,
 	)
 }
 
@@ -373,4 +380,59 @@ func (r *VirtualMachineReconciler) initializeStatusCondition(instance *v1alpha1.
 		return
 	}
 	instance.SetStatusCondition(conditionType, status, reason, "")
+}
+
+func (r *VirtualMachineReconciler) findKubeVirtVMs(ctx context.Context, instance *v1alpha1.VirtualMachine, nsName string) (*kubevirtv1.VirtualMachine, error) {
+	log := ctrllog.FromContext(ctx)
+
+	var kubeVirtVMList kubevirtv1.VirtualMachineList
+	if err := r.List(ctx, &kubeVirtVMList, client.InNamespace(nsName), labelSelectorFromVirtualMachineInstance(instance)); err != nil {
+		log.Error(err, "failed to list KubeVirt VMs")
+		return nil, err
+	}
+
+	if len(kubeVirtVMList.Items) > 1 {
+		return nil, fmt.Errorf("found too many (%d) matching KubeVirt VMs for %s", len(kubeVirtVMList.Items), instance.GetName())
+	}
+
+	if len(kubeVirtVMList.Items) == 0 {
+		return nil, nil
+	}
+
+	return &kubeVirtVMList.Items[0], nil
+}
+
+func (r *VirtualMachineReconciler) handleKubeVirtVM(ctx context.Context, instance *v1alpha1.VirtualMachine,
+	kv *kubevirtv1.VirtualMachine) error {
+
+	log := ctrllog.FromContext(ctx)
+
+	name := kv.GetName()
+	instance.SetVirtualMachineReferenceKubeVirtVirtalMachineName(name)
+	instance.SetStatusCondition(v1alpha1.VirtualMachineConditionAccepted, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
+
+	if kvVmHasConditionWithStatus(kv, kubevirtv1.VirtualMachineReady, corev1.ConditionTrue) {
+		log.Info("KubeVirt virtual machine is ready", "virtualmachine", instance.GetName())
+		instance.SetStatusCondition(v1alpha1.VirtualMachineConditionAvailable, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
+		instance.Status.Phase = v1alpha1.VirtualMachinePhaseReady
+	}
+
+	return nil
+}
+
+func kvVmGetCondition(vm *kubevirtv1.VirtualMachine, cond kubevirtv1.VirtualMachineConditionType) *kubevirtv1.VirtualMachineCondition {
+	if vm == nil {
+		return nil
+	}
+	for _, c := range vm.Status.Conditions {
+		if c.Type == cond {
+			return &c
+		}
+	}
+	return nil
+}
+
+func kvVmHasConditionWithStatus(vm *kubevirtv1.VirtualMachine, cond kubevirtv1.VirtualMachineConditionType, status corev1.ConditionStatus) bool {
+	c := kvVmGetCondition(vm, cond)
+	return c != nil && c.Status == status
 }

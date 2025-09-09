@@ -70,6 +70,15 @@ const (
 	VirtualMachineConditionDeleting VirtualMachineConditionType = "Deleting"
 )
 
+// VirtualMachineReferenceType contains a reference to the resources created by this VirtualMachine
+type VirtualMachineReferenceType struct {
+	// Namespace that contains the VirtualMachine resources
+	Namespace                 string `json:"namespace"`
+	KubeVirtVirtalMachineName string `json:"kubeVirtVirtalMachineName"`
+	ServiceAccountName        string `json:"serviceAccountName"`
+	RoleBindingName           string `json:"roleBindingName"`
+}
+
 // VirtualMachineStatus defines the observed state of VirtualMachine.
 type VirtualMachineStatus struct {
 	// Phase provides a single-value overview of the state of the VirtualMachine
@@ -81,6 +90,10 @@ type VirtualMachineStatus struct {
 	// Conditions holds an array of metav1.Condition that describe the state of the VirtualMachine
 	// +kubebuilder:validation:Optional
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+
+	// Reference to the namespace that contains VirtualMachine resources
+	// +kubebuilder:validation:Optional
+	VirtualMachineReference *VirtualMachineReferenceType `json:"virtualMachineReference,omitempty"`
 }
 
 // +kubebuilder:object:root=true
