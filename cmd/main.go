@@ -39,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -60,6 +61,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
 	utilruntime.Must(hypershiftv1beta1.AddToScheme(scheme))
+	utilruntime.Must(kubevirtv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -240,6 +242,34 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err = (controller.NewVirtualMachineReconciler(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		os.Getenv("CLOUDKIT_VM_CREATE_WEBHOOK"),
+		os.Getenv("CLOUDKIT_VM_DELETE_WEBHOOK"),
+		os.Getenv("CLOUDKIT_VM_NAMESPACE"),
+		interval,
+	)).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "VirtualMachine")
+		os.Exit(1)
+	}
+
+	// Create the VirtualMachine feedback reconciler if gRPC connection is available:
+	if grpcConn != nil {
+		if err = (controller.NewVirtualMachineFeedbackReconciler(
+			ctrl.Log.WithName("virtualmachine-feedback"),
+			mgr.GetClient(),
+			grpcConn,
+			os.Getenv("CLOUDKIT_VM_NAMESPACE"),
+		)).SetupWithManager(mgr); err != nil {
+			setupLog.Error(
+				err,
+				"unable to create virtualmachine feedback controller",
+				"controller", "VirtualMachineFeedback",
+			)
+			os.Exit(1)
+		}
+	}
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
