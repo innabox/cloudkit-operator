@@ -47,7 +47,6 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	cloudkitv1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
 	v1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
 	"github.com/innabox/cloudkit-operator/internal/controller"
 	// +kubebuilder:scaffold:imports
@@ -62,7 +61,6 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
 	utilruntime.Must(hypershiftv1beta1.AddToScheme(scheme))
-	utilruntime.Must(cloudkitv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(kubevirtv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
