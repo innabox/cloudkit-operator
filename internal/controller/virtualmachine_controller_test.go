@@ -51,7 +51,9 @@ var _ = Describe("VirtualMachine Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: cloudkitv1alpha1.VirtualMachineSpec{
+						TemplateID: "test_template",
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}

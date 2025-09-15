@@ -89,6 +89,7 @@ func NewVirtualMachineReconciler(
 // +kubebuilder:rbac:groups=cloudkit.openshift.io,resources=virtualmachines/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=cloudkit.openshift.io,resources=virtualmachines/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=kubevirt.io,resources=virtualmachines,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -157,6 +158,11 @@ func (r *VirtualMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&v1alpha1.VirtualMachine{}, builder.WithPredicates(VirtualMachineNamespacePredicate(r.VirtualMachineNamespace))).
 		Watches(
 			&corev1.Namespace{},
+			handler.EnqueueRequestsFromMapFunc(r.mapObjectToVirtualMachine),
+			builder.WithPredicates(labelPredicate),
+		).
+		Watches(
+			&kubevirtv1.VirtualMachine{},
 			handler.EnqueueRequestsFromMapFunc(r.mapObjectToVirtualMachine),
 			builder.WithPredicates(labelPredicate),
 		).
@@ -251,11 +257,6 @@ func (r *VirtualMachineReconciler) handleUpdate(ctx context.Context, _ ctrl.Requ
 		if err := r.handleKubeVirtVM(ctx, instance, kv); err != nil {
 			return ctrl.Result{}, err
 		}
-	}
-
-	if ns != nil {
-		instance.SetStatusCondition(v1alpha1.VirtualMachineConditionAvailable, metav1.ConditionTrue, v1alpha1.ReasonAsExpected, "")
-		instance.Status.Phase = v1alpha1.VirtualMachinePhaseReady
 	}
 
 	if url := r.CreateVMWebhook; url != "" {
@@ -365,6 +366,12 @@ func (r *VirtualMachineReconciler) initializeStatusConditions(instance *v1alpha1
 		instance,
 		v1alpha1.VirtualMachineConditionProgressing,
 		metav1.ConditionTrue,
+		v1alpha1.ReasonInitialized,
+	)
+	r.initializeStatusCondition(
+		instance,
+		v1alpha1.VirtualMachineConditionAvailable,
+		metav1.ConditionFalse,
 		v1alpha1.ReasonInitialized,
 	)
 }

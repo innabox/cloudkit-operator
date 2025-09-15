@@ -247,7 +247,7 @@ func main() {
 		mgr.GetScheme(),
 		os.Getenv("CLOUDKIT_VM_CREATE_WEBHOOK"),
 		os.Getenv("CLOUDKIT_VM_DELETE_WEBHOOK"),
-		os.Getenv("CLOUDKIT_VM_NAMESPACE"),
+		os.Getenv("CLOUDKIT_VM_ORDER_NAMESPACE"),
 		interval,
 	)).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "VirtualMachine")
@@ -260,7 +260,7 @@ func main() {
 			ctrl.Log.WithName("virtualmachine-feedback"),
 			mgr.GetClient(),
 			grpcConn,
-			os.Getenv("CLOUDKIT_VM_NAMESPACE"),
+			os.Getenv("CLOUDKIT_VM_ORDER_NAMESPACE"),
 		)).SetupWithManager(mgr); err != nil {
 			setupLog.Error(
 				err,

@@ -161,6 +161,7 @@ image-run: ## Run container image locally.
 	$(CONTAINER_TOOL) run --rm --userns keep-id --name cloudkit-controller \
 		-v ${HOME}/.kube:/.kube -e HOME=/ \
 		-e CLOUDKIT_CLUSTER_ORDER_NAMESPACE=$(CLOUDKIT_DEV_NAMESPACE) \
+		-e CLOUDKIT_VM_ORDER_NAMESPACE=$(CLOUDKIT_DEV_NAMESPACE) \
 		${IMG}
 
 .PHONY: kind-load

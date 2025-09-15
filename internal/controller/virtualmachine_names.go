@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	defaultVirtualMachineNamespace string = "cloudkit-vms"
+	defaultVirtualMachineNamespace string = "cloudkit-vm-orders"
 	cloudkitVMNamePrefix           string = "cloudkit.openshift.io"
 )
 
