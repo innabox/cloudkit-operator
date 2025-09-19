@@ -99,17 +99,20 @@ func (r *VirtualMachineFeedbackReconciler) Reconcile(ctx context.Context, reques
 	}
 	if object.ObjectMeta.DeletionTimestamp.IsZero() {
 		result, err = t.handleUpdate(ctx)
+		if err != nil {
+			return
+		}
+		// Save the objects that have changed only if not being deleted:
+		err = r.saveVirtualMachine(ctx, vm, t.vm)
+		if err != nil {
+			return
+		}
 	} else {
 		result, err = t.handleDelete(ctx)
-	}
-	if err != nil {
-		return
-	}
-
-	// Save the objects that have changed:
-	err = r.saveVirtualMachine(ctx, vm, t.vm)
-	if err != nil {
-		return
+		if err != nil {
+			return
+		}
+		// Don't send feedback to virtualMachinesClient if the CR is being deleted
 	}
 	return
 }
