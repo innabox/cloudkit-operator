@@ -84,6 +84,14 @@ func (r *VirtualMachineFeedbackReconciler) Reconcile(ctx context.Context, reques
 		return
 	}
 
+	// Check if the VM is being deleted before fetching from fulfillment service
+	if !object.ObjectMeta.DeletionTimestamp.IsZero() {
+		r.logger.Info(
+			"VirtualMachine is being deleted, skipping feedback reconciliation",
+		)
+		return
+	}
+
 	// Fetch the virtual machine:
 	vm, err := r.fetchVirtualMachine(ctx, vmID)
 	if err != nil {
@@ -98,19 +106,15 @@ func (r *VirtualMachineFeedbackReconciler) Reconcile(ctx context.Context, reques
 		vm:     clone(vm),
 	}
 
-	if object.ObjectMeta.DeletionTimestamp.IsZero() {
-		result, err = t.handleUpdate(ctx)
-		if err != nil {
-			return
-		}
-		// Save the objects that have changed only if not being deleted:
-		err = r.saveVirtualMachine(ctx, vm, t.vm)
-		if err != nil {
-			return
-		}
+	result, err = t.handleUpdate(ctx)
+	if err != nil {
+		return
 	}
-	// Don't send feedback to virtualMachinesClient if the CR is being deleted
-	// as it is already deleted by the fulfillment-service.
+	// Save the objects that have changed:
+	err = r.saveVirtualMachine(ctx, vm, t.vm)
+	if err != nil {
+		return
+	}
 	return
 }
 
