@@ -257,7 +257,6 @@ func main() {
 	// Create the VirtualMachine feedback reconciler if gRPC connection is available:
 	if grpcConn != nil {
 		if err = (controller.NewVirtualMachineFeedbackReconciler(
-			ctrl.Log.WithName("virtualmachine-feedback"),
 			mgr.GetClient(),
 			grpcConn,
 			os.Getenv("CLOUDKIT_VM_ORDER_NAMESPACE"),

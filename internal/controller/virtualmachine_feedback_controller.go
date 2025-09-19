@@ -16,13 +16,13 @@ package controller
 import (
 	"context"
 
-	"github.com/go-logr/logr"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	clnt "sigs.k8s.io/controller-runtime/pkg/client"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	ckv1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
 	privatev1 "github.com/innabox/cloudkit-operator/internal/api/private/v1"
@@ -31,7 +31,6 @@ import (
 
 // VirtualMachineFeedbackReconciler sends updates to the fulfillment service.
 type VirtualMachineFeedbackReconciler struct {
-	logger                  logr.Logger
 	hubClient               clnt.Client
 	virtualMachinesClient   privatev1.VirtualMachinesClient
 	virtualMachineNamespace string
@@ -46,9 +45,8 @@ type virtualMachineFeedbackReconcilerTask struct {
 }
 
 // NewVirtualMachineFeedbackReconciler creates a reconciler that sends to the fulfillment service updates about virtual machines.
-func NewVirtualMachineFeedbackReconciler(logger logr.Logger, hubClient clnt.Client, grpcConn *grpc.ClientConn, virtualMachineNamespace string) *VirtualMachineFeedbackReconciler {
+func NewVirtualMachineFeedbackReconciler(hubClient clnt.Client, grpcConn *grpc.ClientConn, virtualMachineNamespace string) *VirtualMachineFeedbackReconciler {
 	return &VirtualMachineFeedbackReconciler{
-		logger:                  logger,
 		hubClient:               hubClient,
 		virtualMachinesClient:   privatev1.NewVirtualMachinesClient(grpcConn),
 		virtualMachineNamespace: virtualMachineNamespace,
@@ -65,6 +63,8 @@ func (r *VirtualMachineFeedbackReconciler) SetupWithManager(mgr ctrl.Manager) er
 
 // Reconcile is the implementation of the reconciler interface.
 func (r *VirtualMachineFeedbackReconciler) Reconcile(ctx context.Context, request ctrl.Request) (result ctrl.Result, err error) {
+	log := ctrllog.FromContext(ctx)
+
 	// Fetch the object to reconcile, and do nothing if it no longer exists:
 	object := &ckv1alpha1.VirtualMachine{}
 	err = r.hubClient.Get(ctx, request.NamespacedName, object)
@@ -77,7 +77,7 @@ func (r *VirtualMachineFeedbackReconciler) Reconcile(ctx context.Context, reques
 	// created by the fulfillment service, so we ignore it.
 	vmID, ok := object.Labels[cloudkitVirtualMachineIDLabel]
 	if !ok {
-		r.logger.Info(
+		log.Info(
 			"There is no label containing the virtual machine identifier, will ignore it",
 			"label", cloudkitVirtualMachineIDLabel,
 		)
@@ -86,7 +86,7 @@ func (r *VirtualMachineFeedbackReconciler) Reconcile(ctx context.Context, reques
 
 	// Check if the VM is being deleted before fetching from fulfillment service
 	if !object.ObjectMeta.DeletionTimestamp.IsZero() {
-		r.logger.Info(
+		log.Info(
 			"VirtualMachine is being deleted, skipping feedback reconciliation",
 		)
 		return
@@ -148,7 +148,7 @@ func (r *VirtualMachineFeedbackReconciler) saveVirtualMachine(ctx context.Contex
 }
 
 func (t *virtualMachineFeedbackReconcilerTask) handleUpdate(ctx context.Context) (result ctrl.Result, err error) {
-	err = t.syncConditions()
+	err = t.syncConditions(ctx)
 	if err != nil {
 		return
 	}
@@ -159,9 +159,9 @@ func (t *virtualMachineFeedbackReconcilerTask) handleUpdate(ctx context.Context)
 	return
 }
 
-func (t *virtualMachineFeedbackReconcilerTask) syncConditions() error {
+func (t *virtualMachineFeedbackReconcilerTask) syncConditions(ctx context.Context) error {
 	for _, condition := range t.object.Status.Conditions {
-		err := t.syncCondition(condition)
+		err := t.syncCondition(ctx, condition)
 		if err != nil {
 			return err
 		}
@@ -169,7 +169,7 @@ func (t *virtualMachineFeedbackReconcilerTask) syncConditions() error {
 	return nil
 }
 
-func (t *virtualMachineFeedbackReconcilerTask) syncCondition(condition metav1.Condition) error {
+func (t *virtualMachineFeedbackReconcilerTask) syncCondition(ctx context.Context, condition metav1.Condition) error {
 	switch ckv1alpha1.VirtualMachineConditionType(condition.Type) {
 	case ckv1alpha1.VirtualMachineConditionAccepted:
 		return t.syncConditionAccepted(condition)
@@ -180,7 +180,8 @@ func (t *virtualMachineFeedbackReconcilerTask) syncCondition(condition metav1.Co
 	case ckv1alpha1.VirtualMachineConditionDeleting:
 		return t.syncConditionDeleting(condition)
 	default:
-		t.r.logger.Info(
+		log := ctrllog.FromContext(ctx)
+		log.Info(
 			"Unknown condition, will ignore it",
 			"condition", condition.Type,
 		)
@@ -259,7 +260,8 @@ func (t *virtualMachineFeedbackReconcilerTask) syncPhase(ctx context.Context) er
 		// TODO: There is no equivalent phase in the fulfillment service.
 		// return t.syncPhaseDeleting(ctx)
 	default:
-		t.r.logger.Info(
+		log := ctrllog.FromContext(ctx)
+		log.Info(
 			"Unknown phase, will ignore it",
 			"phase", t.object.Status.Phase,
 		)
