@@ -97,6 +97,7 @@ func (r *VirtualMachineFeedbackReconciler) Reconcile(ctx context.Context, reques
 		object: object,
 		vm:     clone(vm),
 	}
+
 	if object.ObjectMeta.DeletionTimestamp.IsZero() {
 		result, err = t.handleUpdate(ctx)
 		if err != nil {
@@ -107,13 +108,9 @@ func (r *VirtualMachineFeedbackReconciler) Reconcile(ctx context.Context, reques
 		if err != nil {
 			return
 		}
-	} else {
-		result, err = t.handleDelete(ctx)
-		if err != nil {
-			return
-		}
-		// Don't send feedback to virtualMachinesClient if the CR is being deleted
 	}
+	// Don't send feedback to virtualMachinesClient if the CR is being deleted
+	// as it is already deleted by the fulfillment-service.
 	return
 }
 
@@ -286,11 +283,6 @@ func (t *virtualMachineFeedbackReconcilerTask) syncPhaseReady(ctx context.Contex
 	// For example, IP addresses, connection details, etc.
 
 	return nil
-}
-
-func (t *virtualMachineFeedbackReconcilerTask) handleDelete(ctx context.Context) (result ctrl.Result, err error) {
-	// TODO: Implement delete handling if needed
-	return
 }
 
 func (t *virtualMachineFeedbackReconcilerTask) findVirtualMachineCondition(kind privatev1.VirtualMachineConditionType) *privatev1.VirtualMachineCondition {
