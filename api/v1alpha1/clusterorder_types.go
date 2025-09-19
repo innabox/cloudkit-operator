@@ -138,6 +138,11 @@ type ClusterOrderList struct {
 	Items           []ClusterOrder `json:"items"`
 }
 
+// GetName returns the name of the ClusterOrder resource
+func (co *ClusterOrder) GetName() string {
+	return co.Name
+}
+
 func init() {
 	SchemeBuilder.Register(&ClusterOrder{}, &ClusterOrderList{})
 }

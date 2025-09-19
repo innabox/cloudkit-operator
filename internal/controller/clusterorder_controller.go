@@ -65,11 +65,11 @@ func (r *ClusterOrderReconciler) components() []component {
 // ClusterOrderReconciler reconciles a ClusterOrder object
 type ClusterOrderReconciler struct {
 	client.Client
-	Scheme                 *runtime.Scheme
-	CreateClusterWebhook   string
-	DeleteClusterWebhook   string
-	ClusterOrderNamespace  string
-	MinimumRequestInterval time.Duration
+	Scheme                *runtime.Scheme
+	CreateClusterWebhook  string
+	DeleteClusterWebhook  string
+	ClusterOrderNamespace string
+	webhookClient         *WebhookClient
 }
 
 func NewClusterOrderReconciler(
@@ -86,12 +86,12 @@ func NewClusterOrderReconciler(
 	}
 
 	return &ClusterOrderReconciler{
-		Client:                 client,
-		Scheme:                 scheme,
-		CreateClusterWebhook:   createClusterWebhook,
-		DeleteClusterWebhook:   deleteClusterWebhook,
-		ClusterOrderNamespace:  clusterOrderNamespace,
-		MinimumRequestInterval: minimumRequestInterval,
+		Client:                client,
+		Scheme:                scheme,
+		CreateClusterWebhook:  createClusterWebhook,
+		DeleteClusterWebhook:  deleteClusterWebhook,
+		ClusterOrderNamespace: clusterOrderNamespace,
+		webhookClient:         NewWebhookClient(10*time.Second, minimumRequestInterval),
 	}
 }
 
@@ -290,7 +290,7 @@ func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Reques
 		if exists && val == "manual" {
 			log.Info("not triggering create webhook due to management-state annotation", "url", url, "management-state", val)
 		} else {
-			remainingTime, err := triggerWebHook(ctx, url, instance, r.MinimumRequestInterval)
+			remainingTime, err := r.webhookClient.TriggerWebhook(ctx, url, instance)
 			if err != nil {
 				log.Error(err, "failed to trigger webhook", "url", url, "error", err)
 				return ctrl.Result{Requeue: true}, nil
@@ -481,7 +481,7 @@ func (r *ClusterOrderReconciler) handleDelete(ctx context.Context, _ ctrl.Reques
 				if exists && val == "manual" {
 					log.Info("not triggering delete webhook due to management-state annotation", "url", url, "management-state", val)
 				} else {
-					remainingTime, err := triggerWebHook(ctx, url, instance, r.MinimumRequestInterval)
+					remainingTime, err := r.webhookClient.TriggerWebhook(ctx, url, instance)
 					if err != nil {
 						log.Error(err, "failed to trigger webhook", "url", url, "error", err)
 						return ctrl.Result{Requeue: true}, nil

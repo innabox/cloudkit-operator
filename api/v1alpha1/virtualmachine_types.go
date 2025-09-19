@@ -128,6 +128,11 @@ type VirtualMachineList struct {
 	Items           []VirtualMachine `json:"items"`
 }
 
+// GetName returns the name of the VirtualMachine resource
+func (vm *VirtualMachine) GetName() string {
+	return vm.Name
+}
+
 func init() {
 	SchemeBuilder.Register(&VirtualMachine{}, &VirtualMachineList{})
 }

@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestInflightRequestCache(t *testing.T) {
+func TestWebhookClientCache(t *testing.T) {
 	var (
 		url1            = "http://webhook1.example.com"
 		url2            = "http://webhook2.example.com"
@@ -16,44 +16,42 @@ func TestInflightRequestCache(t *testing.T) {
 		ctx             = context.TODO()
 	)
 
+	// Create a new webhook client for testing
+	client := NewWebhookClient(10*time.Second, minInterval)
+
 	t.Run("checkForExistingRequest returns 0 when no request exists", func(t *testing.T) {
-		resetInflightCache()
-		if got := checkForExistingRequest(ctx, url1, minInterval); got != 0 {
+		client.ResetCache()
+		if got := client.checkForExistingRequest(ctx, url1); got != 0 {
 			t.Errorf("Expected 0, got %v", got)
 		}
 	})
 
 	t.Run("addInflightRequest stores the request", func(t *testing.T) {
-		resetInflightCache()
-		addInflightRequest(ctx, url1, minInterval)
-		inflightRequestsLock.RLock()
-		_, ok := inflightRequests[url1]
-		inflightRequestsLock.RUnlock()
-		if !ok {
+		client.ResetCache()
+		client.addInflightRequest(ctx, url1)
+		if _, ok := client.inflightRequests.Load(url1); !ok {
 			t.Errorf("Expected %s to be present in inflightRequests", url1)
 		}
 	})
 
 	t.Run("checkForExistingRequest returns non-zero for recent request", func(t *testing.T) {
-		resetInflightCache()
-		addInflightRequest(ctx, url1, minInterval)
-		delta := checkForExistingRequest(ctx, url1, minInterval)
+		client.ResetCache()
+		client.addInflightRequest(ctx, url1)
+		delta := client.checkForExistingRequest(ctx, url1)
 		if delta <= 0 || delta > minInterval {
 			t.Errorf("Expected delta in (0, %v], got %v", minInterval, delta)
 		}
 	})
 
 	t.Run("purgeExpiredRequests only removes expired", func(t *testing.T) {
-		resetInflightCache()
-		addInflightRequest(ctx, url1, minInterval)
+		client.ResetCache()
+		client.addInflightRequest(ctx, url1)
 		time.Sleep(minInterval + sleepBufferTime)
-		addInflightRequest(ctx, url2, minInterval)
-		purgeExpiredRequests(ctx, minInterval)
+		client.addInflightRequest(ctx, url2)
+		client.purgeExpiredRequests(ctx)
 
-		inflightRequestsLock.RLock()
-		_, exists1 := inflightRequests[url1]
-		_, exists2 := inflightRequests[url2]
-		inflightRequestsLock.RUnlock()
+		_, exists1 := client.inflightRequests.Load(url1)
+		_, exists2 := client.inflightRequests.Load(url2)
 
 		if exists1 {
 			t.Errorf("Expected %s to be purged", url1)
@@ -64,7 +62,7 @@ func TestInflightRequestCache(t *testing.T) {
 	})
 
 	t.Run("concurrent access is safe", func(t *testing.T) {
-		resetInflightCache()
+		client.ResetCache()
 		const workers = 10
 		var wg sync.WaitGroup
 
@@ -76,16 +74,16 @@ func TestInflightRequestCache(t *testing.T) {
 				if i%2 == 0 {
 					u = url2
 				}
-				addInflightRequest(ctx, u, minInterval)
-				checkForExistingRequest(ctx, u, minInterval)
-				purgeExpiredRequests(ctx, minInterval)
+				client.addInflightRequest(ctx, u)
+				client.checkForExistingRequest(ctx, u)
+				client.purgeExpiredRequests(ctx)
 			}(i)
 		}
 		wg.Wait()
 	})
 
-	t.Run("verify lock prevents data race with high concurrency", func(t *testing.T) {
-		resetInflightCache()
+	t.Run("verify sync.Map prevents data race with high concurrency", func(t *testing.T) {
+		client.ResetCache()
 		const goroutines = 100
 		var wg sync.WaitGroup
 
@@ -97,19 +95,11 @@ func TestInflightRequestCache(t *testing.T) {
 				if i%2 == 0 {
 					url = url2
 				}
-				addInflightRequest(ctx, url, minInterval)
-				_ = checkForExistingRequest(ctx, url, minInterval)
-				purgeExpiredRequests(ctx, minInterval)
+				client.addInflightRequest(ctx, url)
+				_ = client.checkForExistingRequest(ctx, url)
+				client.purgeExpiredRequests(ctx)
 			}(i)
 		}
 		wg.Wait()
 	})
-
-}
-
-// resetInflightCache is a helper to zero out the global state before each test
-func resetInflightCache() {
-	inflightRequestsLock.Lock()
-	inflightRequests = make(map[string]InflightRequest)
-	inflightRequestsLock.Unlock()
 }

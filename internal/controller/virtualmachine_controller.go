@@ -59,7 +59,7 @@ type VirtualMachineReconciler struct {
 	CreateVMWebhook         string
 	DeleteVMWebhook         string
 	VirtualMachineNamespace string
-	MinimumRequestInterval  time.Duration
+	webhookClient           *WebhookClient
 }
 
 func NewVirtualMachineReconciler(
@@ -81,7 +81,7 @@ func NewVirtualMachineReconciler(
 		CreateVMWebhook:         createVMWebhook,
 		DeleteVMWebhook:         deleteVMWebhook,
 		VirtualMachineNamespace: virtualMachineNamespace,
-		MinimumRequestInterval:  minimumRequestInterval,
+		webhookClient:           NewWebhookClient(10*time.Second, minimumRequestInterval),
 	}
 }
 
@@ -264,7 +264,7 @@ func (r *VirtualMachineReconciler) handleUpdate(ctx context.Context, _ ctrl.Requ
 		if exists && val == "manual" {
 			log.Info("not triggering create webhook due to management-state annotation", "url", url, "management-state", val)
 		} else {
-			remainingTime, err := triggerCreateVMWebHook(ctx, url, instance, r.MinimumRequestInterval)
+			remainingTime, err := r.webhookClient.TriggerWebhook(ctx, url, instance)
 			if err != nil {
 				log.Error(err, "failed to trigger webhook", "url", url, "error", err)
 				return ctrl.Result{Requeue: true}, nil
@@ -324,7 +324,7 @@ func (r *VirtualMachineReconciler) handleDelete(ctx context.Context, _ ctrl.Requ
 			if exists && val == "manual" {
 				log.Info("not triggering delete webhook due to management-state annotation", "url", url, "management-state", val)
 			} else {
-				remainingTime, err := triggerDeleteVMWebHook(ctx, url, instance, r.MinimumRequestInterval)
+				remainingTime, err := r.webhookClient.TriggerWebhook(ctx, url, instance)
 				if err != nil {
 					log.Error(err, "failed to trigger webhook", "url", url, "error", err)
 					return ctrl.Result{Requeue: true}, nil
