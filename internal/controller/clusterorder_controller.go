@@ -114,7 +114,7 @@ func (r *ClusterOrderReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	val, exists := instance.Annotations[cloudkitManagementStateAnnotation]
-	if exists && val == "unmanaged" {
+	if exists && val == ManagementStateUnmanaged {
 		log.Info("ignoring ClusterOrder due to management-state annotation", "management-state", val)
 		return ctrl.Result{}, nil
 	}
@@ -287,7 +287,7 @@ func (r *ClusterOrderReconciler) handleUpdate(ctx context.Context, _ ctrl.Reques
 
 	if url := r.CreateClusterWebhook; url != "" {
 		val, exists := instance.Annotations[cloudkitManagementStateAnnotation]
-		if exists && val == "manual" {
+		if exists && val == ManagementStateManual {
 			log.Info("not triggering create webhook due to management-state annotation", "url", url, "management-state", val)
 		} else {
 			remainingTime, err := r.webhookClient.TriggerWebhook(ctx, url, instance)
@@ -478,7 +478,7 @@ func (r *ClusterOrderReconciler) handleDelete(ctx context.Context, _ ctrl.Reques
 			log.Info("waiting for hostedcluster to delete", "hostedcluster", hc.GetName())
 			if url := r.DeleteClusterWebhook; url != "" {
 				val, exists := instance.Annotations[cloudkitManagementStateAnnotation]
-				if exists && val == "manual" {
+				if exists && val == ManagementStateManual {
 					log.Info("not triggering delete webhook due to management-state annotation", "url", url, "management-state", val)
 				} else {
 					remainingTime, err := r.webhookClient.TriggerWebhook(ctx, url, instance)

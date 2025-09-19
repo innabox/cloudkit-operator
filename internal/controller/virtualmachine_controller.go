@@ -103,7 +103,7 @@ func (r *VirtualMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	val, exists := instance.Annotations[cloudkitVirtualMachineManagementStateAnnotation]
-	if exists && val == "unmanaged" {
+	if exists && val == ManagementStateUnmanaged {
 		log.Info("ignoring VirtualMachine due to management-state annotation", "management-state", val)
 		return ctrl.Result{}, nil
 	}
@@ -261,7 +261,7 @@ func (r *VirtualMachineReconciler) handleUpdate(ctx context.Context, _ ctrl.Requ
 
 	if url := r.CreateVMWebhook; url != "" {
 		val, exists := instance.Annotations[cloudkitVirtualMachineManagementStateAnnotation]
-		if exists && val == "manual" {
+		if exists && val == ManagementStateManual {
 			log.Info("not triggering create webhook due to management-state annotation", "url", url, "management-state", val)
 		} else {
 			remainingTime, err := r.webhookClient.TriggerWebhook(ctx, url, instance)
@@ -321,7 +321,7 @@ func (r *VirtualMachineReconciler) handleDelete(ctx context.Context, _ ctrl.Requ
 		log.Info("waiting for virtual machine to delete", "namespace", ns.GetName())
 		if url := r.DeleteVMWebhook; url != "" {
 			val, exists := instance.Annotations[cloudkitVirtualMachineManagementStateAnnotation]
-			if exists && val == "manual" {
+			if exists && val == ManagementStateManual {
 				log.Info("not triggering delete webhook due to management-state annotation", "url", url, "management-state", val)
 			} else {
 				remainingTime, err := r.webhookClient.TriggerWebhook(ctx, url, instance)
@@ -418,7 +418,7 @@ func (r *VirtualMachineReconciler) handleKubeVirtVM(ctx context.Context, instanc
 	instance.SetVirtualMachineReferenceKubeVirtVirtalMachineName(name)
 	instance.SetStatusCondition(v1alpha1.VirtualMachineConditionAccepted, metav1.ConditionTrue, v1alpha1.ReasonAsExpected, "")
 
-	if kvVmHasConditionWithStatus(kv, kubevirtv1.VirtualMachineReady, corev1.ConditionTrue) {
+	if kvVMHasConditionWithStatus(kv, kubevirtv1.VirtualMachineReady, corev1.ConditionTrue) {
 		log.Info("KubeVirt virtual machine is ready", "virtualmachine", instance.GetName())
 		instance.SetStatusCondition(v1alpha1.VirtualMachineConditionAvailable, metav1.ConditionTrue, v1alpha1.ReasonAsExpected, "")
 		instance.Status.Phase = v1alpha1.VirtualMachinePhaseReady
@@ -427,7 +427,7 @@ func (r *VirtualMachineReconciler) handleKubeVirtVM(ctx context.Context, instanc
 	return nil
 }
 
-func kvVmGetCondition(vm *kubevirtv1.VirtualMachine, cond kubevirtv1.VirtualMachineConditionType) *kubevirtv1.VirtualMachineCondition {
+func kvVMGetCondition(vm *kubevirtv1.VirtualMachine, cond kubevirtv1.VirtualMachineConditionType) *kubevirtv1.VirtualMachineCondition {
 	if vm == nil {
 		return nil
 	}
@@ -439,7 +439,7 @@ func kvVmGetCondition(vm *kubevirtv1.VirtualMachine, cond kubevirtv1.VirtualMach
 	return nil
 }
 
-func kvVmHasConditionWithStatus(vm *kubevirtv1.VirtualMachine, cond kubevirtv1.VirtualMachineConditionType, status corev1.ConditionStatus) bool {
-	c := kvVmGetCondition(vm, cond)
+func kvVMHasConditionWithStatus(vm *kubevirtv1.VirtualMachine, cond kubevirtv1.VirtualMachineConditionType, status corev1.ConditionStatus) bool {
+	c := kvVMGetCondition(vm, cond)
 	return c != nil && c.Status == status
 }

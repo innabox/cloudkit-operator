@@ -38,6 +38,12 @@ linters:
           - dupl
           - lll
         path: internal/*
+      - linters:
+          - dupl
+        path: api/v1alpha1/clusterorder_clusterreference.go
+      - linters:
+          - dupl
+        path: api/v1alpha1/virtualmachine_virtualmachinereference.go
     paths:
       - third_party$
       - builtin$
