@@ -5,24 +5,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	ConditionAccepted              = "Accepted"
-	ConditionNamespaceCreated      = "NamespaceCreated"
-	ConditionControlPlaneCreated   = "ControlPlaneCreated"
-	ConditionControlPlaneAvailable = "ControlPlaneAvailable"
-	ConditionClusterAvailable      = "ClusterAvailable"
-	ConditionProgressing           = "Progressing"
-	ConditionDeleting              = "Deleting"
-	ConditionCompleted             = "Completed"
-)
-
-const (
-	ReasonInitialized = "Initialized"
-	ReasonAsExpected  = "AsExpected"
-	ReasonCreated     = "Created"
-	ReasonProgressing = "Progressing"
-)
-
 func (co *ClusterOrder) SetStatusCondition(conditionType string, status metav1.ConditionStatus, message string, reason string) bool {
 	condition := metav1.Condition{
 		Type:    conditionType,

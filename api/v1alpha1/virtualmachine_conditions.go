@@ -20,14 +20,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// Additional reason constants for VirtualMachine conditions
-const (
-	ReasonFailed           = "Failed"
-	ReasonDeleting         = "Deleting"
-	ReasonWebhookTriggered = "WebhookTriggered"
-	ReasonWebhookFailed    = "WebhookFailed"
-)
-
 // SetStatusCondition sets the condition on the VirtualMachine status
 func (vm *VirtualMachine) SetStatusCondition(conditionType VirtualMachineConditionType, status metav1.ConditionStatus, reason, message string) {
 	condition := metav1.Condition{
