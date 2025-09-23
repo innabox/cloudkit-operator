@@ -29,7 +29,9 @@ resources:
 # default, aiding admins in cluster management. Those roles are
 # not used by the cloudkit-operator itself. You can comment the following lines
 # if you do not want those helpers be installed with your Project.
+- hostpool_admin_role.yaml
+- hostpool_editor_role.yaml
+- hostpool_viewer_role.yaml
 - virtualmachine_admin_role.yaml
 - virtualmachine_editor_role.yaml
 - virtualmachine_viewer_role.yaml
-

@@ -215,6 +215,21 @@ func main() {
 			)
 			os.Exit(1)
 		}
+
+		// Create the HostPool feedback reconciler:
+		if err = (controller.NewHostPoolFeedbackReconciler(
+			ctrl.Log.WithName("feedback"),
+			mgr.GetClient(),
+			grpcConn,
+			os.Getenv("CLOUDKIT_HOSTPOOL_ORDER_NAMESPACE"),
+		)).SetupWithManager(mgr); err != nil {
+			setupLog.Error(
+				err,
+				"unable to create hostpool feedback controller",
+				"controller", "Feedback",
+			)
+			os.Exit(1)
+		}
 	} else {
 		setupLog.Info("gRPC connection to fulfillment service is disabled")
 	}
@@ -251,6 +266,18 @@ func main() {
 		interval,
 	)).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "VirtualMachine")
+		os.Exit(1)
+	}
+
+	if err = (controller.NewHostPoolReconciler(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		os.Getenv("CLOUDKIT_HOSTPOOL_CREATE_WEBHOOK"),
+		os.Getenv("CLOUDKIT_HOSTPOOL_DELETE_WEBHOOK"),
+		os.Getenv("CLOUDKIT_HOSTPOOL_ORDER_NAMESPACE"),
+		interval,
+	)).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "HostPool")
 		os.Exit(1)
 	}
 
