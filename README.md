@@ -30,7 +30,7 @@ cloudkit-operator makes use of the following environment variables:
 **Build and push your image to the location specified by `IMG`:**
 
 ```sh
-make docker-build docker-push IMG=<some-registry>/cloudkit-operator:tag
+make image-build image-push IMG=<some-registry>/cloudkit-operator:tag
 ```
 
 **NOTE:** This image ought to be published in the personal registry you specified.
