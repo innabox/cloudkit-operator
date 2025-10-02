@@ -259,6 +259,10 @@ func (r *VirtualMachineReconciler) handleUpdate(ctx context.Context, _ ctrl.Requ
 		}
 	}
 
+	if instance.Status.Phase == v1alpha1.VirtualMachinePhaseReady {
+		return ctrl.Result{}, nil
+	}
+
 	if url := r.CreateVMWebhook; url != "" {
 		val, exists := instance.Annotations[cloudkitVirtualMachineManagementStateAnnotation]
 		if exists && val == ManagementStateManual {
