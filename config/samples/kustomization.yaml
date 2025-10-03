@@ -1,5 +1,6 @@
 ## Append samples of your project ##
 resources:
 - cloudkit_v1alpha1_clusterorder.yaml
+- cloudkit_v1alpha1_hostpool.yaml
 - cloudkit_v1alpha1_virtualmachine.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples
