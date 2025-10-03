@@ -48,8 +48,6 @@ type hostPoolComponent struct {
 func (r *HostPoolReconciler) hostPoolComponents() []hostPoolComponent {
 	return []hostPoolComponent{
 		{"Namespace", r.newHostPoolNamespace},
-		{"ServiceAccount", r.newHostPoolServiceAccount},
-		{"RoleBinding", r.newHostPoolAdminRoleBinding},
 	}
 }
 
@@ -89,8 +87,7 @@ func NewHostPoolReconciler(
 // +kubebuilder:rbac:groups=cloudkit.openshift.io,resources=hostpools,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cloudkit.openshift.io,resources=hostpools/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=cloudkit.openshift.io,resources=hostpools/finalizers,verbs=update
-// +kubebuilder:rbac:groups="",resources=namespaces;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -257,29 +254,77 @@ func (r *HostPoolReconciler) handleUpdate(ctx context.Context, req ctrl.Request,
 	return ctrl.Result{}, nil
 }
 
+func (r *HostPoolReconciler) findNamespace(ctx context.Context, instance *v1alpha1.HostPool) (*corev1.Namespace, error) {
+	log := ctrllog.FromContext(ctx)
+
+	var namespaceList corev1.NamespaceList
+	if err := r.List(ctx, &namespaceList, labelSelectorFromHostPoolInstance(instance)); err != nil {
+		log.Error(err, "failed to list namespaces")
+		return nil, err
+	}
+
+	if len(namespaceList.Items) > 1 {
+		return nil, fmt.Errorf("found too many (%d) matching namespaces for %s", len(namespaceList.Items), instance.GetName())
+	}
+
+	if len(namespaceList.Items) == 0 {
+		return nil, nil
+	}
+
+	return &namespaceList.Items[0], nil
+}
+
 // handleDelete handles deletion operations for HostPool
 func (r *HostPoolReconciler) handleDelete(ctx context.Context, req ctrl.Request, instance *v1alpha1.HostPool) (ctrl.Result, error) {
 	log := ctrllog.FromContext(ctx)
-
 	log.Info("handling delete for HostPool", "name", instance.Name)
 
 	// Set deleting condition
 	instance.SetCondition(v1alpha1.HostPoolConditionDeleting, metav1.ConditionTrue, "HostPoolDeleting", "HostPool is being deleted")
 	instance.Status.Phase = v1alpha1.HostPoolPhaseDeleting
 
-	// Call webhook to delete host pool resources
-	if r.DeleteHostPoolWebhook != "" {
-		_, err := r.webhookClient.TriggerWebhook(ctx, r.DeleteHostPoolWebhook, instance)
-		if err != nil {
-			instance.SetCondition(v1alpha1.HostPoolConditionDeleting, metav1.ConditionFalse, "WebhookDeleteFailed", fmt.Sprintf("Webhook delete call failed: %v", err))
-			return ctrl.Result{}, err
-		}
+	if !controllerutil.ContainsFinalizer(instance, hostPoolFinalizer) {
+		return ctrl.Result{}, nil
 	}
 
-	// Remove our finalizer to allow deletion
-	controllerutil.RemoveFinalizer(instance, hostPoolFinalizer)
-	if err := r.Update(ctx, instance); err != nil {
+	ns, err := r.findNamespace(ctx, instance)
+	if err != nil {
 		return ctrl.Result{}, err
+	}
+
+	if ns != nil {
+		// Call webhook to delete host pool resources
+		if url := r.DeleteHostPoolWebhook; url != "" {
+			val, exists := instance.Annotations[cloudkitHostPoolManagementStateAnnotation]
+			if exists && val == ManagementStateManual {
+				log.Info("not triggering delete webhook due to management-state annotation", "url", url, "management-state", val)
+			} else {
+				remainingTime, err := r.webhookClient.TriggerWebhook(ctx, url, instance)
+				if err != nil {
+					log.Error(err, "failed to trigger webhook", "url", url, "error", err)
+					return ctrl.Result{Requeue: true}, nil
+				}
+
+				if remainingTime != 0 {
+					return ctrl.Result{RequeueAfter: remainingTime}, nil
+				}
+			}
+		}
+
+		// Delete working namespace
+		log.Info("deleting host pool namespace", "namespace", ns.GetName())
+		if err := r.Client.Delete(ctx, ns); err != nil {
+			log.Error(err, "failed to delete namespace", "namespace", ns.GetName(), "error", err)
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, err
+	}
+
+	// Allow kubernetes to delete the hostpool
+	if controllerutil.RemoveFinalizer(instance, hostPoolFinalizer) {
+		if err := r.Update(ctx, instance); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	log.Info("HostPool deletion completed", "name", instance.Name)

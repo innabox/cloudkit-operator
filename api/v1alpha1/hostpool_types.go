@@ -76,9 +76,7 @@ const (
 // HostPoolReferenceType contains a reference to the resources created by this HostPool
 type HostPoolReferenceType struct {
 	// Namespace that contains the HostPool resources
-	Namespace          string `json:"namespace"`
-	ServiceAccountName string `json:"serviceAccountName"`
-	RoleBindingName    string `json:"roleBindingName"`
+	Namespace string `json:"namespace"`
 }
 
 // HostPoolStatus defines the observed state of HostPool.

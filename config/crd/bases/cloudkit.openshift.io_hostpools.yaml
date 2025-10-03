@@ -136,14 +136,8 @@ spec:
                   namespace:
                     description: Namespace that contains the HostPool resources
                     type: string
-                  roleBindingName:
-                    type: string
-                  serviceAccountName:
-                    type: string
                 required:
                 - namespace
-                - roleBindingName
-                - serviceAccountName
                 type: object
               hostSets:
                 description: HostSets reflects how many hosts are currently allocated

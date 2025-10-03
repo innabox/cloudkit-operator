@@ -22,7 +22,6 @@ import (
 	"maps"
 
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
@@ -70,79 +69,6 @@ func (r *HostPoolReconciler) newHostPoolNamespace(ctx context.Context, instance 
 
 	return &appResource{
 		namespace,
-		mutateFn,
-	}, nil
-}
-
-func (r *HostPoolReconciler) newHostPoolServiceAccount(ctx context.Context, instance *v1alpha1.HostPool) (*appResource, error) {
-	namespaceName := instance.GetHostPoolReferenceNamespace()
-	if namespaceName == "" {
-		return nil, fmt.Errorf("unable to retrieve required information from status.hostPoolReference")
-	}
-
-	serviceAccountName := defaultServiceAccountName
-
-	sa := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      serviceAccountName,
-			Namespace: namespaceName,
-			Labels:    commonLabelsFromHostPool(instance),
-		},
-	}
-
-	mutateFn := func() error {
-		ensureCommonLabelsForHostPool(instance, sa)
-		instance.SetHostPoolReferenceServiceAccountName(serviceAccountName)
-		return nil
-	}
-
-	return &appResource{
-		sa,
-		mutateFn,
-	}, nil
-}
-
-func (r *HostPoolReconciler) newHostPoolAdminRoleBinding(ctx context.Context, instance *v1alpha1.HostPool) (*appResource, error) {
-	namespaceName := instance.GetHostPoolReferenceNamespace()
-	serviceAccountName := instance.GetHostPoolReferenceServiceAccountName()
-	if namespaceName == "" || serviceAccountName == "" {
-		return nil, fmt.Errorf("unable to retrieve required information from status.hostPoolReference")
-	}
-
-	roleBindingName := defaultRoleBindingName
-
-	subjects := []rbacv1.Subject{
-		{
-			Kind:      "ServiceAccount",
-			Name:      serviceAccountName,
-			Namespace: namespaceName,
-		},
-	}
-
-	roleref := rbacv1.RoleRef{
-		Kind:     "ClusterRole",
-		Name:     "admin",
-		APIGroup: "rbac.authorization.k8s.io",
-	}
-
-	roleBinding := &rbacv1.RoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      roleBindingName,
-			Namespace: namespaceName,
-			Labels:    commonLabelsFromHostPool(instance),
-		},
-	}
-
-	mutateFn := func() error {
-		instance.SetHostPoolReferenceRoleBindingName(roleBindingName)
-		ensureCommonLabelsForHostPool(instance, roleBinding)
-		roleBinding.Subjects = subjects
-		roleBinding.RoleRef = roleref
-		return nil
-	}
-
-	return &appResource{
-		roleBinding,
 		mutateFn,
 	}, nil
 }
