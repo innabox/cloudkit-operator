@@ -54,29 +54,31 @@ func NewWebhookClient(timeout, minimumRequestInterval time.Duration) *WebhookCli
 }
 
 // checkForExistingRequest checks if there's already an inflight request for the given resource
-func (wc *WebhookClient) checkForExistingRequest(ctx context.Context, resourceName string) time.Duration {
+func (wc *WebhookClient) checkForExistingRequest(ctx context.Context, url, resourceName string) time.Duration {
 	var delta time.Duration
 
 	log := ctrllog.FromContext(ctx)
-	if value, ok := wc.inflightRequests.Load(resourceName); ok {
+	cacheKey := fmt.Sprintf("%s:%s", url, resourceName)
+	if value, ok := wc.inflightRequests.Load(cacheKey); ok {
 		request := value.(InflightRequest)
 		delta = time.Since(request.createTime)
 		if delta >= wc.minimumRequestInterval {
 			delta = 0
 		}
-		log.Info("skip webhook (resource found in cache)", "resource", resourceName, "delta", delta, "minimumRequestInterval", wc.minimumRequestInterval)
+		log.Info("skip webhook (resource found in cache)", "url", url, "resource", resourceName, "delta", delta, "minimumRequestInterval", wc.minimumRequestInterval)
 	}
 	wc.purgeExpiredRequests(ctx)
 	return delta
 }
 
 // addInflightRequest adds a new inflight request to the cache
-func (wc *WebhookClient) addInflightRequest(ctx context.Context, resourceName string) {
+func (wc *WebhookClient) addInflightRequest(ctx context.Context, url, resourceName string) {
 	log := ctrllog.FromContext(ctx)
-	wc.inflightRequests.Store(resourceName, InflightRequest{
+	cacheKey := fmt.Sprintf("%s:%s", url, resourceName)
+	wc.inflightRequests.Store(cacheKey, InflightRequest{
 		createTime: time.Now(),
 	})
-	log.Info("add webhook to cache", "resource", resourceName)
+	log.Info("add webhook to cache", "url", url, "resource", resourceName)
 	wc.purgeExpiredRequests(ctx)
 }
 
@@ -84,11 +86,11 @@ func (wc *WebhookClient) addInflightRequest(ctx context.Context, resourceName st
 func (wc *WebhookClient) purgeExpiredRequests(ctx context.Context) {
 	log := ctrllog.FromContext(ctx)
 	wc.inflightRequests.Range(func(key, value any) bool {
-		resourceName := key.(string)
+		cacheKey := key.(string)
 		request := value.(InflightRequest)
 		if delta := time.Since(request.createTime); delta > wc.minimumRequestInterval {
-			log.Info("expire cache entry for webhook", "resource", resourceName, "minimumRequestInterval", wc.minimumRequestInterval)
-			wc.inflightRequests.Delete(resourceName)
+			log.Info("expire cache entry for webhook", "cacheKey", cacheKey, "minimumRequestInterval", wc.minimumRequestInterval)
+			wc.inflightRequests.Delete(cacheKey)
 		}
 		return true
 	})
@@ -98,7 +100,7 @@ func (wc *WebhookClient) purgeExpiredRequests(ctx context.Context) {
 func (wc *WebhookClient) TriggerWebhook(ctx context.Context, url string, resource WebhookResource) (time.Duration, error) {
 	log := ctrllog.FromContext(ctx)
 
-	if delta := wc.checkForExistingRequest(ctx, resource.GetName()); delta != 0 {
+	if delta := wc.checkForExistingRequest(ctx, url, resource.GetName()); delta != 0 {
 		return delta, nil
 	}
 
@@ -128,7 +130,7 @@ func (wc *WebhookClient) TriggerWebhook(ctx context.Context, url string, resourc
 		return 0, fmt.Errorf("received non-success status code: %d", resp.StatusCode)
 	}
 
-	wc.addInflightRequest(ctx, resource.GetName())
+	wc.addInflightRequest(ctx, url, resource.GetName())
 	return 0, nil
 }
 
