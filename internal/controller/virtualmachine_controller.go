@@ -271,7 +271,7 @@ func (r *VirtualMachineReconciler) handleUpdate(ctx context.Context, _ ctrl.Requ
 			remainingTime, err := r.webhookClient.TriggerWebhook(ctx, url, instance)
 			if err != nil {
 				log.Error(err, "failed to trigger webhook", "url", url, "error", err)
-				return ctrl.Result{Requeue: true}, nil
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 			}
 
 			// Verify if we are within the minimum request window
@@ -311,18 +311,13 @@ func (r *VirtualMachineReconciler) handleDelete(ctx context.Context, _ ctrl.Requ
 
 	instance.Status.Phase = v1alpha1.VirtualMachinePhaseDeleting
 
+	// Finalizer has already been removed, return
 	if !controllerutil.ContainsFinalizer(instance, cloudkitVirtualMachineFinalizer) {
 		return ctrl.Result{}, nil
 	}
 
-	ns, err := r.findNamespace(ctx, instance)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	if ns != nil {
-		// Attempt to delete virtual machine via webhook
-		log.Info("waiting for virtual machine to delete", "namespace", ns.GetName())
+	// AAP Finalizer is here, trigger deletion webhook
+	if controllerutil.ContainsFinalizer(instance, cloudkitAAPVirtualMachineFinalizer) {
 		if url := r.DeleteVMWebhook; url != "" {
 			val, exists := instance.Annotations[cloudkitVirtualMachineManagementStateAnnotation]
 			if exists && val == ManagementStateManual {
@@ -331,7 +326,7 @@ func (r *VirtualMachineReconciler) handleDelete(ctx context.Context, _ ctrl.Requ
 				remainingTime, err := r.webhookClient.TriggerWebhook(ctx, url, instance)
 				if err != nil {
 					log.Error(err, "failed to trigger webhook", "url", url, "error", err)
-					return ctrl.Result{Requeue: true}, nil
+					return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 				}
 
 				if remainingTime != 0 {
@@ -339,10 +334,22 @@ func (r *VirtualMachineReconciler) handleDelete(ctx context.Context, _ ctrl.Requ
 				}
 			}
 		}
-		return ctrl.Result{}, err
+		return ctrl.Result{}, nil
 	}
 
-	// Allow kubernetes to delete the virtualmachine
+	if ns, err := r.findNamespace(ctx, instance); err == nil && ns != nil {
+		if ns.Status.Phase != corev1.NamespaceTerminating {
+			// Remove the namespace, and all resources in it
+			if err := r.Client.Delete(ctx, ns); err != nil {
+				log.Error(err, "failed to delete namespace", "namespace", ns.GetName(), "error", err)
+				return ctrl.Result{Requeue: true}, err
+			}
+		}
+		log.Info("namespace is terminating, requeue to wait for it to be deleted", "namespace", ns.GetName())
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	// Let this CR be deleted
 	if controllerutil.RemoveFinalizer(instance, cloudkitVirtualMachineFinalizer) {
 		if err := r.Update(ctx, instance); err != nil {
 			return ctrl.Result{}, err

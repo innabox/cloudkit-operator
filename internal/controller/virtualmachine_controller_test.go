@@ -18,14 +18,16 @@ package controller
 
 import (
 	"context"
+	"log"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cloudkitv1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
 )
@@ -60,13 +62,42 @@ var _ = Describe("VirtualMachine Controller", func() {
 		})
 
 		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &cloudkitv1alpha1.VirtualMachine{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
+			By("Cleanup the specific resource instance VirtualMachine")
+			err := k8sClient.Get(ctx, typeNamespacedName, virtualmachine)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance VirtualMachine")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+			// Now delete the resource
+			err = k8sClient.Delete(ctx, virtualmachine)
+			if err != nil && !errors.IsNotFound(err) {
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			By("Reconciling the deleted resource")
+			Eventually(func() error {
+				controllerReconciler := &VirtualMachineReconciler{
+					Client: k8sClient,
+					Scheme: k8sClient.Scheme(),
+				}
+				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: typeNamespacedName,
+				})
+				return err
+			}).Should(Succeed())
+
+			// envtest doesn't delete namespaces
+			// https://book.kubebuilder.io/reference/envtest.html#namespace-usage-limitation
+			By("Checking that a namespace is terminating")
+			Eventually(func() corev1.NamespacePhase {
+				var namespaceList corev1.NamespaceList
+				err := k8sClient.List(ctx, &namespaceList, client.MatchingLabels{
+					cloudkitVirtualMachineNameLabel: resourceName,
+				})
+
+				log.Println(namespaceList)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(namespaceList.Items).To(HaveLen(1))
+				return namespaceList.Items[0].Status.Phase
+			}).Should(Equal(corev1.NamespaceTerminating))
 		})
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
@@ -79,8 +110,26 @@ var _ = Describe("VirtualMachine Controller", func() {
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+
+			By("Checking that a namespace was created")
+			var namespaceList corev1.NamespaceList
+			err = k8sClient.List(ctx, &namespaceList, client.MatchingLabels{
+				cloudkitVirtualMachineNameLabel: resourceName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(namespaceList.Items).To(HaveLen(1))
+
+			namespace := namespaceList.Items[0]
+
+			By("Verifying namespace has correct labels")
+			Expect(namespace.Labels).To(HaveKeyWithValue("app.kubernetes.io/name", cloudkitAppName))
+
+			// verify that finalizer is set
+			By("Verifying the finalizer is set on the VirtualMachine resource")
+			vm := &cloudkitv1alpha1.VirtualMachine{}
+			err = k8sClient.Get(ctx, typeNamespacedName, vm)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(vm.Finalizers).To(ContainElement(cloudkitVirtualMachineFinalizer))
 		})
 	})
 })
