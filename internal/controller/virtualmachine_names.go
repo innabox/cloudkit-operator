@@ -26,12 +26,14 @@ import (
 const (
 	defaultVirtualMachineNamespace string = "cloudkit-vm-orders"
 	cloudkitVMNamePrefix           string = "cloudkit.openshift.io"
+	cloudkitAAPVMNamePrefix        string = "cloudkit-aap.openshift.io"
 )
 
 var (
 	cloudkitVirtualMachineNameLabel                 string = fmt.Sprintf("%s/virtualmachine", cloudkitVMNamePrefix)
 	cloudkitVirtualMachineIDLabel                   string = fmt.Sprintf("%s/virtualmachine-uuid", cloudkitVMNamePrefix)
 	cloudkitVirtualMachineFinalizer                 string = fmt.Sprintf("%s/finalizer", cloudkitVMNamePrefix)
+	cloudkitAAPVirtualMachineFinalizer              string = fmt.Sprintf("%s/finalizer", cloudkitAAPVMNamePrefix)
 	cloudkitVirtualMachineManagementStateAnnotation string = fmt.Sprintf("%s/management-state", cloudkitVMNamePrefix)
 )
 
