@@ -246,7 +246,7 @@ func (r *VirtualMachineReconciler) handleUpdate(ctx context.Context, _ ctrl.Requ
 		}
 	}
 
-	instance.SetStatusCondition(v1alpha1.VirtualMachineConditionAccepted, metav1.ConditionTrue, v1alpha1.ReasonAsExpected, "")
+	instance.SetStatusCondition(v1alpha1.VirtualMachineConditionAccepted, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
 
 	ns, err := r.findNamespace(ctx, instance)
 	if err != nil {
@@ -397,7 +397,7 @@ func (r *VirtualMachineReconciler) initializeStatusCondition(instance *v1alpha1.
 	if condition != nil {
 		return
 	}
-	instance.SetStatusCondition(conditionType, status, reason, "")
+	instance.SetStatusCondition(conditionType, status, "", reason)
 }
 
 func (r *VirtualMachineReconciler) findKubeVirtVMs(ctx context.Context, instance *v1alpha1.VirtualMachine, nsName string) (*kubevirtv1.VirtualMachine, error) {
@@ -427,11 +427,11 @@ func (r *VirtualMachineReconciler) handleKubeVirtVM(ctx context.Context, instanc
 
 	name := kv.GetName()
 	instance.SetVirtualMachineReferenceKubeVirtVirtalMachineName(name)
-	instance.SetStatusCondition(v1alpha1.VirtualMachineConditionAccepted, metav1.ConditionTrue, v1alpha1.ReasonAsExpected, "")
+	instance.SetStatusCondition(v1alpha1.VirtualMachineConditionAccepted, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
 
 	if kvVMHasConditionWithStatus(kv, kubevirtv1.VirtualMachineReady, corev1.ConditionTrue) {
 		log.Info("KubeVirt virtual machine is ready", "virtualmachine", instance.GetName())
-		instance.SetStatusCondition(v1alpha1.VirtualMachineConditionAvailable, metav1.ConditionTrue, v1alpha1.ReasonAsExpected, "")
+		instance.SetStatusCondition(v1alpha1.VirtualMachineConditionAvailable, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
 		instance.Status.Phase = v1alpha1.VirtualMachinePhaseReady
 	}
 
