@@ -106,10 +106,8 @@ func (r *VirtualMachineFeedbackReconciler) Reconcile(ctx context.Context, reques
 		vm:     clone(vm),
 	}
 
-	result, err = t.handleUpdate(ctx)
-	if err != nil {
-		return
-	}
+	t.handleUpdate(ctx)
+
 	// Save the objects that have changed:
 	err = r.saveVirtualMachine(ctx, vm, t.vm)
 	if err != nil {
@@ -136,7 +134,14 @@ func (r *VirtualMachineFeedbackReconciler) fetchVirtualMachine(ctx context.Conte
 }
 
 func (r *VirtualMachineFeedbackReconciler) saveVirtualMachine(ctx context.Context, before, after *privatev1.VirtualMachine) error {
+	log := ctrllog.FromContext(ctx)
+
 	if !equal(after, before) {
+		log.Info(
+			"Updating virtual machine",
+			"before", before,
+			"after", after,
+		)
 		_, err := r.virtualMachinesClient.Update(ctx, privatev1.VirtualMachinesUpdateRequest_builder{
 			Object: after,
 		}.Build())
@@ -147,94 +152,66 @@ func (r *VirtualMachineFeedbackReconciler) saveVirtualMachine(ctx context.Contex
 	return nil
 }
 
-func (t *virtualMachineFeedbackReconcilerTask) handleUpdate(ctx context.Context) (result ctrl.Result, err error) {
-	err = t.syncConditions(ctx)
-	if err != nil {
+func (t *virtualMachineFeedbackReconcilerTask) handleUpdate(ctx context.Context) {
+	t.syncConditions(ctx)
+	t.syncPhase(ctx)
+}
+
+func (t *virtualMachineFeedbackReconcilerTask) syncConditions(ctx context.Context) {
+	t.syncProgressing(ctx)
+	t.syncReady(ctx)
+}
+
+// syncProgressing synchronizes the PROGRESSING VM condition from multiple CR conditions.
+// If any of Progressing, or Accepted is true, then PROGRESSING is set to true.
+func (t *virtualMachineFeedbackReconcilerTask) syncProgressing(ctx context.Context) {
+	progressingCondition := t.object.GetStatusCondition(ckv1alpha1.VirtualMachineConditionProgressing)
+	acceptedCondition := t.object.GetStatusCondition(ckv1alpha1.VirtualMachineConditionAccepted)
+
+	var newStatus sharedv1.ConditionStatus
+	var message string
+
+	if t.object.IsStatusConditionUnknown(ckv1alpha1.VirtualMachineConditionProgressing) && t.object.IsStatusConditionUnknown(ckv1alpha1.VirtualMachineConditionAccepted) {
+		newStatus = sharedv1.ConditionStatus_CONDITION_STATUS_UNSPECIFIED
+	} else if t.object.IsStatusConditionTrue(ckv1alpha1.VirtualMachineConditionProgressing) {
+		newStatus = t.mapConditionStatus(progressingCondition.Status)
+		message = progressingCondition.Message
+	} else if t.object.IsStatusConditionTrue(ckv1alpha1.VirtualMachineConditionAccepted) {
+		newStatus = t.mapConditionStatus(acceptedCondition.Status)
+		message = acceptedCondition.Message
+	} else {
+		newStatus = sharedv1.ConditionStatus_CONDITION_STATUS_FALSE
+	}
+
+	vmCondition := t.findVirtualMachineCondition(privatev1.VirtualMachineConditionType_VIRTUAL_MACHINE_CONDITION_TYPE_PROGRESSING)
+	oldStatus := vmCondition.GetStatus()
+
+	vmCondition.SetStatus(newStatus)
+	vmCondition.SetMessage(message)
+	if newStatus != oldStatus {
+		vmCondition.SetLastTransitionTime(timestamppb.Now())
+	}
+}
+
+// syncReady synchronizes the READY VM condition from the Available CR condition.
+func (t *virtualMachineFeedbackReconcilerTask) syncReady(ctx context.Context) {
+	crCondition := t.object.GetStatusCondition(ckv1alpha1.VirtualMachineConditionAvailable)
+	if crCondition == nil {
 		return
 	}
-	err = t.syncPhase(ctx)
-	if err != nil {
-		return
-	}
-	return
+	t.syncVMConditionFromCR(privatev1.VirtualMachineConditionType_VIRTUAL_MACHINE_CONDITION_TYPE_READY, crCondition)
 }
 
-func (t *virtualMachineFeedbackReconcilerTask) syncConditions(ctx context.Context) error {
-	for _, condition := range t.object.Status.Conditions {
-		err := t.syncCondition(ctx, condition)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (t *virtualMachineFeedbackReconcilerTask) syncCondition(ctx context.Context, condition metav1.Condition) error {
-	switch ckv1alpha1.VirtualMachineConditionType(condition.Type) {
-	case ckv1alpha1.VirtualMachineConditionAccepted:
-		return t.syncConditionAccepted(condition)
-	case ckv1alpha1.VirtualMachineConditionProgressing:
-		return t.syncConditionProgressing(condition)
-	case ckv1alpha1.VirtualMachineConditionAvailable:
-		return t.syncConditionAvailable(condition)
-	case ckv1alpha1.VirtualMachineConditionDeleting:
-		return t.syncConditionDeleting(condition)
-	default:
-		log := ctrllog.FromContext(ctx)
-		log.Info(
-			"Unknown condition, will ignore it",
-			"condition", condition.Type,
-		)
-	}
-	return nil
-}
-
-func (t *virtualMachineFeedbackReconcilerTask) syncConditionAccepted(condition metav1.Condition) error {
-	vmCondition := t.findVirtualMachineCondition(privatev1.VirtualMachineConditionType_VIRTUAL_MACHINE_CONDITION_TYPE_PROGRESSING)
+// syncVMConditionFromCR synchronizes a VM condition from a CR condition.
+func (t *virtualMachineFeedbackReconcilerTask) syncVMConditionFromCR(vmConditionType privatev1.VirtualMachineConditionType, crCondition *metav1.Condition) {
+	vmCondition := t.findVirtualMachineCondition(vmConditionType)
 	oldStatus := vmCondition.GetStatus()
-	newStatus := t.mapConditionStatus(condition.Status)
+	newStatus := t.mapConditionStatus(crCondition.Status)
 	vmCondition.SetStatus(newStatus)
-	vmCondition.SetMessage(condition.Message)
+	vmCondition.SetMessage(crCondition.Message)
 	if newStatus != oldStatus {
 		vmCondition.SetLastTransitionTime(timestamppb.Now())
 	}
-	return nil
-}
-
-func (t *virtualMachineFeedbackReconcilerTask) syncConditionProgressing(condition metav1.Condition) error {
-	vmCondition := t.findVirtualMachineCondition(privatev1.VirtualMachineConditionType_VIRTUAL_MACHINE_CONDITION_TYPE_PROGRESSING)
-	oldStatus := vmCondition.GetStatus()
-	newStatus := t.mapConditionStatus(condition.Status)
-	vmCondition.SetStatus(newStatus)
-	vmCondition.SetMessage(condition.Message)
-	if newStatus != oldStatus {
-		vmCondition.SetLastTransitionTime(timestamppb.Now())
-	}
-	return nil
-}
-
-func (t *virtualMachineFeedbackReconcilerTask) syncConditionAvailable(condition metav1.Condition) error {
-	vmCondition := t.findVirtualMachineCondition(privatev1.VirtualMachineConditionType_VIRTUAL_MACHINE_CONDITION_TYPE_READY)
-	oldStatus := vmCondition.GetStatus()
-	newStatus := t.mapConditionStatus(condition.Status)
-	vmCondition.SetStatus(newStatus)
-	vmCondition.SetMessage(condition.Message)
-	if newStatus != oldStatus {
-		vmCondition.SetLastTransitionTime(timestamppb.Now())
-	}
-	return nil
-}
-
-func (t *virtualMachineFeedbackReconcilerTask) syncConditionDeleting(condition metav1.Condition) error {
-	vmCondition := t.findVirtualMachineCondition(privatev1.VirtualMachineConditionType_VIRTUAL_MACHINE_CONDITION_TYPE_PROGRESSING)
-	oldStatus := vmCondition.GetStatus()
-	newStatus := t.mapConditionStatus(condition.Status)
-	vmCondition.SetStatus(newStatus)
-	vmCondition.SetMessage(condition.Message)
-	if newStatus != oldStatus {
-		vmCondition.SetLastTransitionTime(timestamppb.Now())
-	}
-	return nil
 }
 
 func (t *virtualMachineFeedbackReconcilerTask) mapConditionStatus(status metav1.ConditionStatus) sharedv1.ConditionStatus {
@@ -248,47 +225,34 @@ func (t *virtualMachineFeedbackReconcilerTask) mapConditionStatus(status metav1.
 	}
 }
 
-func (t *virtualMachineFeedbackReconcilerTask) syncPhase(ctx context.Context) error {
+func (t *virtualMachineFeedbackReconcilerTask) syncPhase(ctx context.Context) {
 	switch t.object.Status.Phase {
 	case ckv1alpha1.VirtualMachinePhaseProgressing:
-		return t.syncPhaseProgressing()
+		t.syncPhaseProgressing()
 	case ckv1alpha1.VirtualMachinePhaseFailed:
-		return t.syncPhaseFailed()
+		t.syncPhaseFailed()
 	case ckv1alpha1.VirtualMachinePhaseReady:
-		return t.syncPhaseReady(ctx)
-	case ckv1alpha1.VirtualMachinePhaseDeleting:
-		// TODO: There is no equivalent phase in the fulfillment service.
-		// return t.syncPhaseDeleting(ctx)
+		t.syncPhaseReady()
 	default:
 		log := ctrllog.FromContext(ctx)
 		log.Info(
 			"Unknown phase, will ignore it",
 			"phase", t.object.Status.Phase,
 		)
-		return nil
 	}
-	return nil
 }
 
-func (t *virtualMachineFeedbackReconcilerTask) syncPhaseProgressing() error {
+func (t *virtualMachineFeedbackReconcilerTask) syncPhaseProgressing() {
 	t.vm.GetStatus().SetState(privatev1.VirtualMachineState_VIRTUAL_MACHINE_STATE_PROGRESSING)
-	return nil
 }
 
-func (t *virtualMachineFeedbackReconcilerTask) syncPhaseFailed() error {
+func (t *virtualMachineFeedbackReconcilerTask) syncPhaseFailed() {
 	t.vm.GetStatus().SetState(privatev1.VirtualMachineState_VIRTUAL_MACHINE_STATE_FAILED)
-	return nil
 }
 
-func (t *virtualMachineFeedbackReconcilerTask) syncPhaseReady(ctx context.Context) error {
-	// Set the status of the virtual machine:
+func (t *virtualMachineFeedbackReconcilerTask) syncPhaseReady() {
 	vmStatus := t.vm.GetStatus()
 	vmStatus.SetState(privatev1.VirtualMachineState_VIRTUAL_MACHINE_STATE_READY)
-
-	// TODO: Add any additional status fields that need to be synced when the VM is ready
-	// For example, IP addresses, connection details, etc.
-
-	return nil
 }
 
 func (t *virtualMachineFeedbackReconcilerTask) findVirtualMachineCondition(kind privatev1.VirtualMachineConditionType) *privatev1.VirtualMachineCondition {

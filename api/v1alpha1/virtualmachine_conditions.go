@@ -17,37 +17,21 @@ limitations under the License.
 package v1alpha1
 
 import (
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// SetStatusCondition sets the condition on the VirtualMachine status
-func (vm *VirtualMachine) SetStatusCondition(conditionType VirtualMachineConditionType, status metav1.ConditionStatus, reason, message string) {
+func (vm *VirtualMachine) SetStatusCondition(conditionType VirtualMachineConditionType, status metav1.ConditionStatus, message string, reason string) bool {
 	condition := metav1.Condition{
-		Type:               string(conditionType),
-		Status:             status,
-		LastTransitionTime: metav1.Now(),
-		Reason:             reason,
-		Message:            message,
+		Type:    string(conditionType),
+		Status:  status,
+		Reason:  reason,
+		Message: message,
 	}
-
-	// Initialize conditions slice if nil
 	if vm.Status.Conditions == nil {
 		vm.Status.Conditions = []metav1.Condition{}
 	}
-
-	// Find existing condition and update or add new one
-	found := false
-	for i, existing := range vm.Status.Conditions {
-		if existing.Type == string(conditionType) {
-			vm.Status.Conditions[i] = condition
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		vm.Status.Conditions = append(vm.Status.Conditions, condition)
-	}
+	return apimeta.SetStatusCondition(&vm.Status.Conditions, condition)
 }
 
 // GetStatusCondition returns the condition with the given type
