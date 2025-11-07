@@ -30,11 +30,12 @@ const (
 )
 
 var (
-	cloudkitVirtualMachineNameLabel                 string = fmt.Sprintf("%s/virtualmachine", cloudkitVMNamePrefix)
-	cloudkitVirtualMachineIDLabel                   string = fmt.Sprintf("%s/virtualmachine-uuid", cloudkitVMNamePrefix)
-	cloudkitVirtualMachineFinalizer                 string = fmt.Sprintf("%s/finalizer", cloudkitVMNamePrefix)
-	cloudkitAAPVirtualMachineFinalizer              string = fmt.Sprintf("%s/finalizer", cloudkitAAPVMNamePrefix)
-	cloudkitVirtualMachineManagementStateAnnotation string = fmt.Sprintf("%s/management-state", cloudkitVMNamePrefix)
+	cloudkitVirtualMachineNameLabel                  string = fmt.Sprintf("%s/virtualmachine", cloudkitVMNamePrefix)
+	cloudkitVirtualMachineIDLabel                    string = fmt.Sprintf("%s/virtualmachine-uuid", cloudkitVMNamePrefix)
+	cloudkitVirtualMachineFinalizer                  string = fmt.Sprintf("%s/finalizer", cloudkitVMNamePrefix)
+	cloudkitAAPVirtualMachineFinalizer               string = fmt.Sprintf("%s/finalizer", cloudkitAAPVMNamePrefix)
+	cloudkitVirtualMachineManagementStateAnnotation  string = fmt.Sprintf("%s/management-state", cloudkitVMNamePrefix)
+	cloudkitVirualMachineFloatingIPAddressAnnotation string = fmt.Sprintf("%s/floating-ip-address", cloudkitVMNamePrefix)
 )
 
 func generateVirtualMachineNamespaceName(instance *v1alpha1.VirtualMachine) string {
