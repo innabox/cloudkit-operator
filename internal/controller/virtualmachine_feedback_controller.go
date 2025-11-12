@@ -155,6 +155,7 @@ func (r *VirtualMachineFeedbackReconciler) saveVirtualMachine(ctx context.Contex
 func (t *virtualMachineFeedbackReconcilerTask) handleUpdate(ctx context.Context) {
 	t.syncConditions(ctx)
 	t.syncPhase(ctx)
+	t.syncIPAddress()
 }
 
 func (t *virtualMachineFeedbackReconcilerTask) syncConditions(ctx context.Context) {
@@ -271,4 +272,11 @@ func (t *virtualMachineFeedbackReconcilerTask) findVirtualMachineCondition(kind 
 		t.vm.Status.Conditions = append(t.vm.Status.Conditions, condition)
 	}
 	return condition
+}
+
+func (t *virtualMachineFeedbackReconcilerTask) syncIPAddress() {
+	ipAddress, ok := t.object.Annotations[cloudkitVirualMachineFloatingIPAddressAnnotation]
+	if ok && ipAddress != "" {
+		t.vm.GetStatus().SetIpAddress(ipAddress)
+	}
 }
