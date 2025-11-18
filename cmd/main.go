@@ -49,6 +49,7 @@ import (
 
 	v1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
 	"github.com/innabox/cloudkit-operator/internal/controller"
+	"github.com/innabox/cloudkit-operator/internal/helpers"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -75,7 +76,7 @@ func main() {
 	var grpcInsecure bool
 	var grpcTokenFile string
 	var fulfillmentServerAddress string
-	var minimumRequestInterval string
+	var minimumRequestInterval time.Duration
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -111,10 +112,10 @@ func main() {
 		os.Getenv("CLOUDKIT_FULFILLMENT_SERVER_ADDRESS"),
 		"Address of the fulfillment server.",
 	)
-	flag.StringVar(
+	flag.DurationVar(
 		&minimumRequestInterval,
 		"minimum-request-interval",
-		os.Getenv("CLOUDKIT_MINIMUM_REQUEST_INTERVAL"),
+		helpers.GetEnvWithDefault("CLOUDKIT_MINIMUM_REQUEST_INTERVAL", time.Duration(0)),
 		"Minimum amount of time between calls to the same webook url",
 	)
 	opts := zap.Options{
@@ -234,24 +235,13 @@ func main() {
 		setupLog.Info("gRPC connection to fulfillment service is disabled")
 	}
 
-	// No minimumRequestInterval means no rate limiting
-	if minimumRequestInterval == "" {
-		minimumRequestInterval = "0"
-	}
-
-	interval, err := time.ParseDuration(minimumRequestInterval)
-	if err != nil {
-		setupLog.Error(err, "Invalid minimum request interval.")
-		os.Exit(1)
-	}
-
 	if err = (controller.NewClusterOrderReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
 		os.Getenv("CLOUDKIT_CLUSTER_CREATE_WEBHOOK"),
 		os.Getenv("CLOUDKIT_CLUSTER_DELETE_WEBHOOK"),
 		os.Getenv("CLOUDKIT_CLUSTER_ORDER_NAMESPACE"),
-		interval,
+		minimumRequestInterval,
 	)).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterOrder")
 		os.Exit(1)
@@ -263,7 +253,7 @@ func main() {
 		os.Getenv("CLOUDKIT_VM_CREATE_WEBHOOK"),
 		os.Getenv("CLOUDKIT_VM_DELETE_WEBHOOK"),
 		os.Getenv("CLOUDKIT_VM_ORDER_NAMESPACE"),
-		interval,
+		minimumRequestInterval,
 	)).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "VirtualMachine")
 		os.Exit(1)
@@ -275,7 +265,7 @@ func main() {
 		os.Getenv("CLOUDKIT_HOSTPOOL_CREATE_WEBHOOK"),
 		os.Getenv("CLOUDKIT_HOSTPOOL_DELETE_WEBHOOK"),
 		os.Getenv("CLOUDKIT_HOSTPOOL_ORDER_NAMESPACE"),
-		interval,
+		minimumRequestInterval,
 	)).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HostPool")
 		os.Exit(1)
