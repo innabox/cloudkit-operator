@@ -458,56 +458,54 @@ func (r *ClusterOrderReconciler) handleDelete(ctx context.Context, _ ctrl.Reques
 
 	instance.Status.Phase = v1alpha1.ClusterOrderPhaseDeleting
 
-	if !controllerutil.ContainsFinalizer(instance, cloudkitFinalizer) {
-		return ctrl.Result{}, nil
-	}
-
 	ns, err := r.findNamespace(ctx, instance)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	if ns != nil {
-		// Attempt to delete hostedcluster via webhook
 		hc, err := r.findHostedCluster(ctx, instance, ns.GetName())
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 
-		if hc != nil {
-			log.Info("waiting for hostedcluster to delete", "hostedcluster", hc.GetName())
-			if url := r.DeleteClusterWebhook; url != "" {
-				val, exists := instance.Annotations[cloudkitManagementStateAnnotation]
-				if exists && val == ManagementStateManual {
-					log.Info("not triggering delete webhook due to management-state annotation", "url", url, "management-state", val)
-				} else {
-					remainingTime, err := r.webhookClient.TriggerWebhook(ctx, url, instance)
-					if err != nil {
-						log.Error(err, "failed to trigger webhook", "url", url, "error", err)
-						return ctrl.Result{Requeue: true}, nil
-					}
-
-					if remainingTime != 0 {
-						return ctrl.Result{RequeueAfter: remainingTime}, nil
-					}
+		// We expect AAP to delete the hosted cluster, so we wait for that
+		// to happen before deleting the containing namespace.
+		if hc == nil {
+			log.Info("deleting cluster namespace", "namespace", ns.GetName())
+			if err := r.Client.Delete(ctx, ns); err != nil {
+				log.Error(err, "failed to delete namespace", "namespace", ns.GetName(), "error", err)
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		// If we get his far, we are no longer monitoring any kubernetes resources.
+		// Allow kubernetes to delete the clusterorder.
+		if controllerutil.ContainsFinalizer(instance, cloudkitFinalizer) {
+			if controllerutil.RemoveFinalizer(instance, cloudkitFinalizer) {
+				if err := r.Update(ctx, instance); err != nil {
+					return ctrl.Result{}, err
 				}
 			}
-			return ctrl.Result{}, err
 		}
-
-		// Delete working namespace
-		log.Info("deleting cluster namespace", "namespace", ns.GetName())
-		if err := r.Client.Delete(ctx, ns); err != nil {
-			log.Error(err, "failed to delete namespace", "namespace", ns.GetName(), "error", err)
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, err
 	}
 
-	// Allow kubernetes to delete the clusterorder
-	if controllerutil.RemoveFinalizer(instance, cloudkitFinalizer) {
-		if err := r.Update(ctx, instance); err != nil {
-			return ctrl.Result{}, err
+	// We always trigger the delete webhook, since this is responsible both for
+	// cleaning up the kubernetres resources and the underlying infrastructure.
+	if url := r.DeleteClusterWebhook; url != "" {
+		val, exists := instance.Annotations[cloudkitManagementStateAnnotation]
+		if exists && val == ManagementStateManual {
+			log.Info("not triggering delete webhook due to management-state annotation", "url", url, "management-state", val)
+		} else {
+			remainingTime, err := r.webhookClient.TriggerWebhook(ctx, url, instance)
+			if err != nil {
+				log.Error(err, "failed to trigger webhook", "url", url, "error", err)
+				return ctrl.Result{Requeue: true}, nil
+			}
+
+			if remainingTime != 0 {
+				return ctrl.Result{RequeueAfter: remainingTime}, nil
+			}
 		}
 	}
 
