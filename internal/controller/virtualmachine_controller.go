@@ -188,7 +188,7 @@ func (r *VirtualMachineReconciler) mapObjectToVirtualMachine(ctx context.Context
 	}
 	if err := r.Get(ctx, key, virtualMachine); err != nil {
 		// VirtualMachine doesn't exist in our namespace, ignore this notification
-		log.V(1).Info("ignoring notification for resource not managed by this controller instance",
+		log.V(2).Info("ignoring notification for resource not managed by this controller instance",
 			"kind", obj.GetObjectKind().GroupVersionKind().Kind,
 			"namespace", obj.GetNamespace(),
 			"name", obj.GetName(),
