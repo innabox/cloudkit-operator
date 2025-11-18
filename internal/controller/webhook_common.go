@@ -47,6 +47,8 @@ type WebhookClient struct {
 
 // NewWebhookClient creates a new webhook client with the specified timeout and minimum request interval
 func NewWebhookClient(timeout, minimumRequestInterval time.Duration) *WebhookClient {
+	log := ctrllog.Log.WithName("NewWebhookClient")
+	log.Info("creating webhook client", "minimumRequestInterval", minimumRequestInterval)
 	return &WebhookClient{
 		clientTimeout:          timeout,
 		minimumRequestInterval: minimumRequestInterval,
