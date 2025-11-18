@@ -88,8 +88,7 @@ func main() {
 		"If set, the metrics endpoint is served securely via HTTPS. Use --metrics-secure=false to use HTTP instead.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
-	flag.BoolVar(
-		&grpcPlaintext,
+	flag.BoolVar(&grpcPlaintext,
 		"grpc-plaintext",
 		false,
 		"Enable gRPC without TLS.",
