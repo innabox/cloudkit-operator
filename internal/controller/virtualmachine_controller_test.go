@@ -132,4 +132,260 @@ var _ = Describe("VirtualMachine Controller", func() {
 			Expect(vm.Finalizers).To(ContainElement(cloudkitVirtualMachineFinalizer))
 		})
 	})
+
+	Context("handleDesiredConfigVersion", func() {
+		var reconciler *VirtualMachineReconciler
+		ctx := context.Background()
+
+		BeforeEach(func() {
+			reconciler = &VirtualMachineReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+		})
+
+		It("should compute and store a version of the spec", func() {
+			vm := &cloudkitv1alpha1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm-hash",
+					Namespace: "default",
+				},
+				Spec: cloudkitv1alpha1.VirtualMachineSpec{
+					TemplateID:         "template-1",
+					TemplateParameters: `{"key": "value"}`,
+				},
+			}
+
+			err := reconciler.handleDesiredConfigVersion(ctx, vm)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(vm.Status.DesiredConfigVersion).NotTo(BeEmpty())
+		})
+
+		It("should be idempotent - same spec produces same version", func() {
+			vm := &cloudkitv1alpha1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm-idempotent",
+					Namespace: "default",
+				},
+				Spec: cloudkitv1alpha1.VirtualMachineSpec{
+					TemplateID:         "template-1",
+					TemplateParameters: `{"key": "value"}`,
+				},
+			}
+
+			// First call
+			err := reconciler.handleDesiredConfigVersion(ctx, vm)
+			Expect(err).NotTo(HaveOccurred())
+			firstVersion := vm.Status.DesiredConfigVersion
+			Expect(firstVersion).NotTo(BeEmpty())
+
+			// Second call with same spec
+			err = reconciler.handleDesiredConfigVersion(ctx, vm)
+			Expect(err).NotTo(HaveOccurred())
+			secondVersion := vm.Status.DesiredConfigVersion
+			Expect(secondVersion).To(Equal(firstVersion))
+
+			// Third call with same spec
+			err = reconciler.handleDesiredConfigVersion(ctx, vm)
+			Expect(err).NotTo(HaveOccurred())
+			thirdVersion := vm.Status.DesiredConfigVersion
+			Expect(thirdVersion).To(Equal(firstVersion))
+		})
+
+		It("should produce different versions for different specs", func() {
+			vm1 := &cloudkitv1alpha1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm-diff-1",
+					Namespace: "default",
+				},
+				Spec: cloudkitv1alpha1.VirtualMachineSpec{
+					TemplateID:         "template-1",
+					TemplateParameters: `{"key": "value1"}`,
+				},
+			}
+
+			vm2 := &cloudkitv1alpha1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm-diff-2",
+					Namespace: "default",
+				},
+				Spec: cloudkitv1alpha1.VirtualMachineSpec{
+					TemplateID:         "template-1",
+					TemplateParameters: `{"key": "value2"}`,
+				},
+			}
+
+			err := reconciler.handleDesiredConfigVersion(ctx, vm1)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = reconciler.handleDesiredConfigVersion(ctx, vm2)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(vm1.Status.DesiredConfigVersion).NotTo(Equal(vm2.Status.DesiredConfigVersion))
+		})
+
+		It("should produce different versions for different template IDs", func() {
+			vm1 := &cloudkitv1alpha1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm-template-1",
+					Namespace: "default",
+				},
+				Spec: cloudkitv1alpha1.VirtualMachineSpec{
+					TemplateID: "template-1",
+				},
+			}
+
+			vm2 := &cloudkitv1alpha1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm-template-2",
+					Namespace: "default",
+				},
+				Spec: cloudkitv1alpha1.VirtualMachineSpec{
+					TemplateID: "template-2",
+				},
+			}
+
+			err := reconciler.handleDesiredConfigVersion(ctx, vm1)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = reconciler.handleDesiredConfigVersion(ctx, vm2)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(vm1.Status.DesiredConfigVersion).NotTo(Equal(vm2.Status.DesiredConfigVersion))
+		})
+
+		It("should produce same version regardless of order of calls", func() {
+			vm1 := &cloudkitv1alpha1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm-order-1",
+					Namespace: "default",
+				},
+				Spec: cloudkitv1alpha1.VirtualMachineSpec{
+					TemplateID:         "template-1",
+					TemplateParameters: `{"key": "value"}`,
+				},
+			}
+
+			vm2 := &cloudkitv1alpha1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm-order-2",
+					Namespace: "default",
+				},
+				Spec: cloudkitv1alpha1.VirtualMachineSpec{
+					TemplateID:         "template-1",
+					TemplateParameters: `{"key": "value"}`,
+				},
+			}
+
+			// Call on vm1 first
+			err := reconciler.handleDesiredConfigVersion(ctx, vm1)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Then call on vm2
+			err = reconciler.handleDesiredConfigVersion(ctx, vm2)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Versions should be identical
+			Expect(vm1.Status.DesiredConfigVersion).To(Equal(vm2.Status.DesiredConfigVersion))
+		})
+	})
+
+	Context("handleReconciledConfigVersion", func() {
+		var reconciler *VirtualMachineReconciler
+		ctx := context.Background()
+
+		BeforeEach(func() {
+			reconciler = &VirtualMachineReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+		})
+
+		It("should copy annotation to status when annotation exists", func() {
+			expectedVersion := "test-version-value-12345"
+			vm := &cloudkitv1alpha1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm-current",
+					Namespace: "default",
+					Annotations: map[string]string{
+						cloudkitAAPReconciledConfigVersionAnnotation: expectedVersion,
+					},
+				},
+				Spec: cloudkitv1alpha1.VirtualMachineSpec{
+					TemplateID: "template-1",
+				},
+			}
+
+			err := reconciler.handleReconciledConfigVersion(ctx, vm)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(vm.Status.ReconciledConfigVersion).To(Equal(expectedVersion))
+		})
+
+		It("should clear status when annotation does not exist", func() {
+			vm := &cloudkitv1alpha1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "test-vm-no-annotation",
+					Namespace:   "default",
+					Annotations: map[string]string{},
+				},
+				Spec: cloudkitv1alpha1.VirtualMachineSpec{
+					TemplateID: "template-1",
+				},
+				Status: cloudkitv1alpha1.VirtualMachineStatus{
+					ReconciledConfigVersion: "some-old-version",
+				},
+			}
+
+			err := reconciler.handleReconciledConfigVersion(ctx, vm)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(vm.Status.ReconciledConfigVersion).To(BeEmpty())
+		})
+
+		It("should clear status when annotations map is nil", func() {
+			vm := &cloudkitv1alpha1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm-nil-annotations",
+					Namespace: "default",
+				},
+				Spec: cloudkitv1alpha1.VirtualMachineSpec{
+					TemplateID: "template-1",
+				},
+				Status: cloudkitv1alpha1.VirtualMachineStatus{
+					ReconciledConfigVersion: "some-old-version",
+				},
+			}
+
+			err := reconciler.handleReconciledConfigVersion(ctx, vm)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(vm.Status.ReconciledConfigVersion).To(BeEmpty())
+		})
+
+		It("should update status when annotation value changes", func() {
+			vm := &cloudkitv1alpha1.VirtualMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vm-update",
+					Namespace: "default",
+					Annotations: map[string]string{
+						cloudkitAAPReconciledConfigVersionAnnotation: "version-1",
+					},
+				},
+				Spec: cloudkitv1alpha1.VirtualMachineSpec{
+					TemplateID: "template-1",
+				},
+			}
+
+			// First call
+			err := reconciler.handleReconciledConfigVersion(ctx, vm)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(vm.Status.ReconciledConfigVersion).To(Equal("version-1"))
+
+			// Update annotation
+			vm.Annotations[cloudkitAAPReconciledConfigVersionAnnotation] = "version-2"
+
+			// Second call
+			err = reconciler.handleReconciledConfigVersion(ctx, vm)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(vm.Status.ReconciledConfigVersion).To(Equal("version-2"))
+		})
+	})
 })

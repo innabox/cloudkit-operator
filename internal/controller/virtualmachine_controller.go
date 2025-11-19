@@ -18,7 +18,10 @@ package controller
 
 import (
 	"context"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -259,9 +262,23 @@ func (r *VirtualMachineReconciler) handleUpdate(ctx context.Context, _ ctrl.Requ
 		}
 	}
 
-	if instance.Status.Phase == v1alpha1.VirtualMachinePhaseReady {
+	if err := r.handleDesiredConfigVersion(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if err := r.handleReconciledConfigVersion(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if instance.Status.DesiredConfigVersion == instance.Status.ReconciledConfigVersion {
+		instance.Status.Phase = v1alpha1.VirtualMachinePhaseReady
+		instance.SetStatusCondition(v1alpha1.VirtualMachineConditionProgressing, metav1.ConditionFalse, "", v1alpha1.ReasonAsExpected)
+		r.webhookClient.ResetCache()
 		return ctrl.Result{}, nil
 	}
+
+	instance.Status.Phase = v1alpha1.VirtualMachinePhaseProgressing
+	instance.SetStatusCondition(v1alpha1.VirtualMachineConditionProgressing, metav1.ConditionTrue, "Applying configuration", v1alpha1.ReasonAsExpected)
 
 	if url := r.CreateVMWebhook; url != "" {
 		val, exists := instance.Annotations[cloudkitVirtualMachineManagementStateAnnotation]
@@ -432,7 +449,6 @@ func (r *VirtualMachineReconciler) handleKubeVirtVM(ctx context.Context, instanc
 	if kvVMHasConditionWithStatus(kv, kubevirtv1.VirtualMachineReady, corev1.ConditionTrue) {
 		log.Info("KubeVirt virtual machine is ready", "virtualmachine", instance.GetName())
 		instance.SetStatusCondition(v1alpha1.VirtualMachineConditionAvailable, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
-		instance.Status.Phase = v1alpha1.VirtualMachinePhaseReady
 	}
 
 	return nil
@@ -453,4 +469,42 @@ func kvVMGetCondition(vm *kubevirtv1.VirtualMachine, cond kubevirtv1.VirtualMach
 func kvVMHasConditionWithStatus(vm *kubevirtv1.VirtualMachine, cond kubevirtv1.VirtualMachineConditionType, status corev1.ConditionStatus) bool {
 	c := kvVMGetCondition(vm, cond)
 	return c != nil && c.Status == status
+}
+
+// handleDesiredConfigVersion computes a version (hash) of the spec (using FNV-1a) and stores it as hexadecimal in status.DesiredConfigVersion.
+// The hashing is idempotent - the same spec will always produce the same version.
+func (r *VirtualMachineReconciler) handleDesiredConfigVersion(ctx context.Context, instance *v1alpha1.VirtualMachine) error {
+	// Hash the spec using FNV-1a for idempotent hashing
+	specJSON, err := json.Marshal(instance.Spec)
+	if err != nil {
+		return fmt.Errorf("failed to marshal spec to JSON: %w", err)
+	}
+
+	hasher := fnv.New64a()
+	if _, err := hasher.Write(specJSON); err != nil {
+		return fmt.Errorf("failed to write to hash: %w", err)
+	}
+
+	hashBytes := hasher.Sum(nil)
+	desiredConfigVersion := hex.EncodeToString(hashBytes)
+	instance.Status.DesiredConfigVersion = desiredConfigVersion
+
+	return nil
+}
+
+// handleReconciledConfigVersion copies the annotation cloudkitAAPReconciledConfigVersionAnnotation to status.ReconciledConfigVersion.
+// If the annotation doesn't exist, it clears status.ReconciledConfigVersion.
+func (r *VirtualMachineReconciler) handleReconciledConfigVersion(ctx context.Context, instance *v1alpha1.VirtualMachine) error {
+	log := ctrllog.FromContext(ctx)
+
+	// Copy the reconciled config version from annotation if it exists
+	if version, exists := instance.Annotations[cloudkitAAPReconciledConfigVersionAnnotation]; exists {
+		instance.Status.ReconciledConfigVersion = version
+		log.V(1).Info("copied reconciled config version from annotation", "version", version)
+	} else {
+		// Clear the reconciled config version if annotation doesn't exist
+		instance.Status.ReconciledConfigVersion = ""
+	}
+
+	return nil
 }
