@@ -122,6 +122,10 @@ spec:
                   - type
                   type: object
                 type: array
+              desiredConfigVersion:
+                description: DesiredConfigVersion is the version (hash) of the desired
+                  configuration of the VirtualMachine
+                type: string
               phase:
                 description: Phase provides a single-value overview of the state of
                   the VirtualMachine
@@ -130,6 +134,10 @@ spec:
                 - Failed
                 - Ready
                 - Deleting
+                type: string
+              reconciledConfigVersion:
+                description: ReconciledConfigVersion is the version (hash) of the
+                  reconciled configuration of the VirtualMachine
                 type: string
               virtualMachineReference:
                 description: Reference to the namespace that contains VirtualMachine
