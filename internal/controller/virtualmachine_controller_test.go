@@ -52,6 +52,9 @@ var _ = Describe("VirtualMachine Controller", func() {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
+						Annotations: map[string]string{
+							cloudkitVirtualMachineTenantAnnotation: "test-tenant",
+						},
 					},
 					Spec: cloudkitv1alpha1.VirtualMachineSpec{
 						TemplateID: "test_template",

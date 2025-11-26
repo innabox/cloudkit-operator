@@ -50,6 +50,7 @@ import (
 	v1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
 	"github.com/innabox/cloudkit-operator/internal/controller"
 	"github.com/innabox/cloudkit-operator/internal/helpers"
+	ovnv1 "github.com/ovn-org/ovn-kubernetes/go-controller/pkg/crd/userdefinednetwork/v1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -63,6 +64,7 @@ func init() {
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
 	utilruntime.Must(hypershiftv1beta1.AddToScheme(scheme))
 	utilruntime.Must(kubevirtv1.AddToScheme(scheme))
+	utilruntime.Must(ovnv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 

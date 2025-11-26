@@ -52,6 +52,7 @@ type vmComponent struct {
 func (r *VirtualMachineReconciler) vmComponents() []vmComponent {
 	return []vmComponent{
 		{"Namespace", r.newNamespace},
+		{"UDN", r.newUDN},
 	}
 }
 
@@ -92,6 +93,7 @@ func NewVirtualMachineReconciler(
 // +kubebuilder:rbac:groups=cloudkit.openshift.io,resources=virtualmachines/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=cloudkit.openshift.io,resources=virtualmachines/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=k8s.ovn.org,resources=clusteruserdefinednetworks,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=kubevirt.io,resources=virtualmachines,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -355,6 +357,12 @@ func (r *VirtualMachineReconciler) handleDelete(ctx context.Context, _ ctrl.Requ
 	}
 
 	if ns, err := r.findNamespace(ctx, instance); err == nil && ns != nil {
+		// Check if this is the last namespace using the network, and delete CUDN if so
+		if err := r.cleanupCUDNIfLastNamespace(ctx, ns); err != nil {
+			log.Error(err, "failed to cleanup CUDN", "namespace", ns.GetName())
+			return ctrl.Result{Requeue: true}, err
+		}
+
 		if ns.Status.Phase != corev1.NamespaceTerminating {
 			// Remove the namespace, and all resources in it
 			if err := r.Client.Delete(ctx, ns); err != nil {

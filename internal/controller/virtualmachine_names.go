@@ -37,6 +37,8 @@ var (
 	cloudkitVirtualMachineManagementStateAnnotation  string = fmt.Sprintf("%s/management-state", cloudkitVMNamePrefix)
 	cloudkitVirualMachineFloatingIPAddressAnnotation string = fmt.Sprintf("%s/floating-ip-address", cloudkitVMNamePrefix)
 	cloudkitAAPReconciledConfigVersionAnnotation     string = fmt.Sprintf("%s/reconciled-config-version", cloudkitAAPVMNamePrefix)
+	cloudkitVirtualMachineTenantAnnotation           string = fmt.Sprintf("%s/tenant", cloudkitVMNamePrefix)
+	cloudkitVirtualMachineNetworkNameLabel           string = fmt.Sprintf("%s/network-name", cloudkitVMNamePrefix)
 )
 
 func generateVirtualMachineNamespaceName(instance *v1alpha1.VirtualMachine) string {
