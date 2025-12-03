@@ -20,7 +20,6 @@ import (
 	"fmt"
 
 	v1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
-	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 const (
@@ -40,5 +39,5 @@ var (
 )
 
 func generateVirtualMachineNamespaceName(instance *v1alpha1.VirtualMachine) string {
-	return fmt.Sprintf("vm-%s-%s", instance.GetName(), rand.String(6))
+	return fmt.Sprintf("%s-%s", instance.GetNamespace(), instance.GetName())
 }
