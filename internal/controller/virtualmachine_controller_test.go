@@ -35,6 +35,7 @@ import (
 var _ = Describe("VirtualMachine Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
+		const namespaceName = "default"
 
 		ctx := context.Background()
 
@@ -51,7 +52,7 @@ var _ = Describe("VirtualMachine Controller", func() {
 				resource := &cloudkitv1alpha1.VirtualMachine{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
-						Namespace: "default",
+						Namespace: namespaceName,
 					},
 					Spec: cloudkitv1alpha1.VirtualMachineSpec{
 						TemplateID: "test_template",
@@ -120,6 +121,9 @@ var _ = Describe("VirtualMachine Controller", func() {
 			Expect(namespaceList.Items).To(HaveLen(1))
 
 			namespace := namespaceList.Items[0]
+
+			By("Verifying namespace has correct name")
+			Expect(namespace.Name).To(Equal(namespaceName + "-" + resourceName))
 
 			By("Verifying namespace has correct labels")
 			Expect(namespace.Labels).To(HaveKeyWithValue("app.kubernetes.io/name", cloudkitAppName))
