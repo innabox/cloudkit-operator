@@ -52,6 +52,7 @@ type vmComponent struct {
 func (r *VirtualMachineReconciler) vmComponents() []vmComponent {
 	return []vmComponent{
 		{"Namespace", r.newNamespace},
+		{"CUDN", r.NewCUDN},
 	}
 }
 
@@ -92,6 +93,7 @@ func NewVirtualMachineReconciler(
 // +kubebuilder:rbac:groups=cloudkit.openshift.io,resources=virtualmachines/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=cloudkit.openshift.io,resources=virtualmachines/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=k8s.ovn.org,resources=clusteruserdefinednetworks,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=kubevirt.io,resources=virtualmachines,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -322,6 +324,59 @@ func (r *VirtualMachineReconciler) findNamespace(ctx context.Context, instance *
 	return &namespaceList.Items[0], nil
 }
 
+// removeNetworkLabelFromNamespace removes the network label from the namespace.
+// This is done before namespace deletion to ensure the CUDN (ClusterUserDefinedNetwork)
+// is no longer associated with the namespace.
+func (r *VirtualMachineReconciler) removeNetworkLabelFromNamespace(ctx context.Context, ns *corev1.Namespace) error {
+	log := ctrllog.FromContext(ctx)
+
+	// Check if the label exists
+	labels := ns.GetLabels()
+	if labels == nil {
+		// No labels to remove
+		return nil
+	}
+
+	if _, exists := labels[cloudkitNetworkLabel]; !exists {
+		// Label doesn't exist, nothing to do
+		return nil
+	}
+
+	// Remove the label
+	delete(labels, cloudkitNetworkLabel)
+	ns.SetLabels(labels)
+
+	// Update the namespace
+	if err := r.Update(ctx, ns); err != nil {
+		return fmt.Errorf("failed to update namespace %s: %w", ns.GetName(), err)
+	}
+
+	log.Info("removed network label from namespace", "namespace", ns.GetName())
+	return nil
+}
+
+// deleteNamespaceAndRequeue deletes the namespace if it's not already terminating,
+// and returns a requeue result to wait for the namespace deletion to complete.
+func (r *VirtualMachineReconciler) deleteNamespaceAndRequeue(ctx context.Context, ns *corev1.Namespace) (ctrl.Result, error) {
+	log := ctrllog.FromContext(ctx)
+
+	if err := r.removeNetworkLabelFromNamespace(ctx, ns); err != nil {
+		log.Error(err, "failed to remove network label from namespace", "namespace", ns.GetName())
+		return ctrl.Result{}, err
+	}
+
+	if ns.Status.Phase != corev1.NamespaceTerminating {
+		// Remove the namespace, and all resources in it
+		if err := r.Client.Delete(ctx, ns); err != nil {
+			log.Error(err, "failed to delete namespace", "namespace", ns.GetName())
+			return ctrl.Result{}, err
+		}
+	}
+
+	log.Info("namespace is terminating, requeue to wait for it to be deleted", "namespace", ns.GetName())
+	return ctrl.Result{RequeueAfter: requeueAfterWaitDuration}, nil
+}
+
 func (r *VirtualMachineReconciler) handleDelete(ctx context.Context, _ ctrl.Request, instance *v1alpha1.VirtualMachine) (ctrl.Result, error) {
 	log := ctrllog.FromContext(ctx)
 	log.Info("deleting virtualmachine")
@@ -354,19 +409,17 @@ func (r *VirtualMachineReconciler) handleDelete(ctx context.Context, _ ctrl.Requ
 		return ctrl.Result{}, nil
 	}
 
-	if ns, err := r.findNamespace(ctx, instance); err == nil && ns != nil {
-		if ns.Status.Phase != corev1.NamespaceTerminating {
-			// Remove the namespace, and all resources in it
-			if err := r.Client.Delete(ctx, ns); err != nil {
-				log.Error(err, "failed to delete namespace", "namespace", ns.GetName(), "error", err)
-				return ctrl.Result{Requeue: true}, err
-			}
-		}
-		log.Info("namespace is terminating, requeue to wait for it to be deleted", "namespace", ns.GetName())
-		return ctrl.Result{Requeue: true}, nil
+	// Cleanup namespace associated with the virtual machine
+	ns, err := r.findNamespace(ctx, instance)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 
-	// Let this CR be deleted
+	if ns != nil {
+		return r.deleteNamespaceAndRequeue(ctx, ns)
+	}
+
+	// Let this CR deleted
 	if controllerutil.RemoveFinalizer(instance, cloudkitVirtualMachineFinalizer) {
 		if err := r.Update(ctx, instance); err != nil {
 			return ctrl.Result{}, err

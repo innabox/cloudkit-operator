@@ -124,7 +124,7 @@ var _ = Describe("VirtualMachineFeedbackReconciler", func() {
 			}
 			result, err := reconciler.Reconcile(ctx, request)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Requeue).To(BeFalse())
+			Expect(result.IsZero()).To(BeTrue())
 			Expect(mockClient.updateCalled).To(BeFalse())
 		})
 	})
@@ -157,7 +157,7 @@ var _ = Describe("VirtualMachineFeedbackReconciler", func() {
 			}
 			result, err := reconciler.Reconcile(ctx, request)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Requeue).To(BeFalse())
+			Expect(result.IsZero()).To(BeTrue())
 			Expect(mockClient.updateCalled).To(BeFalse())
 		})
 	})
@@ -207,7 +207,7 @@ var _ = Describe("VirtualMachineFeedbackReconciler", func() {
 			}
 			result, err := reconciler.Reconcile(ctx, request)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Requeue).To(BeFalse())
+			Expect(result.IsZero()).To(BeTrue())
 			Expect(mockClient.updateCalled).To(BeFalse()) // Should not update when deleting
 		})
 	})
@@ -280,7 +280,7 @@ var _ = Describe("VirtualMachineFeedbackReconciler", func() {
 			}
 			result, err := reconciler.Reconcile(ctx, request)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Requeue).To(BeFalse())
+			Expect(result.IsZero()).To(BeTrue())
 			Expect(mockClient.updateCalled).To(BeTrue())
 			Expect(mockClient.lastUpdate).NotTo(BeNil())
 			Expect(mockClient.lastUpdate.GetStatus().GetState()).To(Equal(privatev1.VirtualMachineState_VIRTUAL_MACHINE_STATE_READY))
@@ -350,7 +350,7 @@ var _ = Describe("VirtualMachineFeedbackReconciler", func() {
 			// First reconciliation - should trigger an update
 			result, err := reconciler.Reconcile(ctx, request)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Requeue).To(BeFalse())
+			Expect(result.IsZero()).To(BeTrue())
 			Expect(mockClient.updateCount).To(Equal(1))
 			Expect(mockClient.updateCalled).To(BeTrue())
 
@@ -364,7 +364,7 @@ var _ = Describe("VirtualMachineFeedbackReconciler", func() {
 			// Run reconciliation again
 			result, err = reconciler.Reconcile(ctx, request)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Requeue).To(BeFalse())
+			Expect(result.IsZero()).To(BeTrue())
 			// Update count should still be 1, not 2, because only the timestamp changed, not the status
 			Expect(mockClient.updateCount).To(Equal(1))
 		})

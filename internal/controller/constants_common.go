@@ -16,10 +16,21 @@ limitations under the License.
 
 package controller
 
+import "time"
+
 const (
 	// ManagementStateManual indicates that the resource should not be managed by the controller
 	ManagementStateManual = "manual"
 
 	// ManagementStateUnmanaged indicates that the resource should be ignored by the controller
 	ManagementStateUnmanaged = "unmanaged"
+
+	// cloudkitNetworkLabel is the label key used to identify which network a namespace belongs to
+	cloudkitNetworkLabel = "cloudkit.openshift.io/network"
+
+	// cloudkitTenantAnnotation is the annotation key used to store the tenant name
+	cloudkitTenantAnnotation = "cloudkit.openshift.io/tenant"
+
+	// requeueAfterWaitDuration is the duration to requeue the request after waiting for another resource to be updated
+	requeueAfterWaitDuration = 10 * time.Second
 )

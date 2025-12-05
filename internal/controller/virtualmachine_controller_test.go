@@ -53,6 +53,9 @@ var _ = Describe("VirtualMachine Controller", func() {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: namespaceName,
+						Annotations: map[string]string{
+							cloudkitTenantAnnotation: "test-tenant",
+						},
 					},
 					Spec: cloudkitv1alpha1.VirtualMachineSpec{
 						TemplateID: "test_template",
@@ -127,6 +130,10 @@ var _ = Describe("VirtualMachine Controller", func() {
 
 			By("Verifying namespace has correct labels")
 			Expect(namespace.Labels).To(HaveKeyWithValue("app.kubernetes.io/name", cloudkitAppName))
+			Expect(namespace.Labels).To(HaveKey("k8s.ovn.org/primary-user-defined-network"))
+
+			By("Verifying namespace has tenant annotation")
+			Expect(namespace.Annotations).To(HaveKeyWithValue(cloudkitTenantAnnotation, "test-tenant"))
 
 			// verify that finalizer is set
 			By("Verifying the finalizer is set on the VirtualMachine resource")
