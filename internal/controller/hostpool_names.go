@@ -20,7 +20,6 @@ import (
 	"fmt"
 
 	v1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
-	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 const (
@@ -37,5 +36,5 @@ var (
 )
 
 func generateHostPoolNamespaceName(instance *v1alpha1.HostPool) string {
-	return fmt.Sprintf("hostpool-%s-%s", instance.GetName(), rand.String(6))
+	return fmt.Sprintf("%s-%s", instance.GetNamespace(), instance.GetName())
 }
