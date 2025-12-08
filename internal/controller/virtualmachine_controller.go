@@ -444,6 +444,7 @@ func (r *VirtualMachineReconciler) handleKubeVirtVM(ctx context.Context, instanc
 
 	name := kv.GetName()
 	instance.SetVirtualMachineReferenceKubeVirtVirtalMachineName(name)
+	instance.SetVirtualMachineReferenceNamespace(kv.GetNamespace())
 	instance.SetStatusCondition(v1alpha1.VirtualMachineConditionAccepted, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
 
 	if kvVMHasConditionWithStatus(kv, kubevirtv1.VirtualMachineReady, corev1.ConditionTrue) {

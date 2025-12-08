@@ -75,8 +75,6 @@ type VirtualMachineReferenceType struct {
 	// Namespace that contains the VirtualMachine resources
 	Namespace                 string `json:"namespace"`
 	KubeVirtVirtalMachineName string `json:"kubeVirtVirtalMachineName"`
-	ServiceAccountName        string `json:"serviceAccountName"`
-	RoleBindingName           string `json:"roleBindingName"`
 }
 
 // VirtualMachineStatus defines the observed state of VirtualMachine.

@@ -148,15 +148,9 @@ spec:
                   namespace:
                     description: Namespace that contains the VirtualMachine resources
                     type: string
-                  roleBindingName:
-                    type: string
-                  serviceAccountName:
-                    type: string
                 required:
                 - kubeVirtVirtalMachineName
                 - namespace
-                - roleBindingName
-                - serviceAccountName
                 type: object
             type: object
         required:
