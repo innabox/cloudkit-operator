@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	v1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
-	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 const (
@@ -25,5 +24,5 @@ var (
 )
 
 func generateNamespaceName(instance *v1alpha1.ClusterOrder) string {
-	return fmt.Sprintf("cluster-%s-%s", instance.GetName(), rand.String(6))
+	return fmt.Sprintf("%s-%s", instance.GetNamespace(), instance.GetName())
 }
