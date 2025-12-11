@@ -22,6 +22,7 @@ rules:
   resources:
   - clusterorders
   - hostpools
+  - tenants
   - virtualmachines
   verbs:
   - create
@@ -36,6 +37,7 @@ rules:
   resources:
   - clusterorders/finalizers
   - hostpools/finalizers
+  - tenants/finalizers
   - virtualmachines/finalizers
   verbs:
   - update
@@ -44,6 +46,7 @@ rules:
   resources:
   - clusterorders/status
   - hostpools/status
+  - tenants/status
   - virtualmachines/status
   verbs:
   - get
@@ -57,6 +60,18 @@ rules:
   verbs:
   - get
   - list
+  - watch
+- apiGroups:
+  - k8s.ovn.org
+  resources:
+  - userdefinednetworks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - kubevirt.io

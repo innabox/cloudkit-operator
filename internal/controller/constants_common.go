@@ -22,4 +22,10 @@ const (
 
 	// ManagementStateUnmanaged indicates that the resource should be ignored by the controller
 	ManagementStateUnmanaged = "unmanaged"
+
+	// cloudkitAppName is the name of the cloudkit application
+	cloudkitAppName string = "cloudkit-operator"
+
+	// cloudkitPrefix is the prefix used to identify cloudkit resources
+	cloudkitPrefix string = "cloudkit.openshift.io"
 )
