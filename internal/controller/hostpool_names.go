@@ -25,14 +25,13 @@ import (
 const (
 	defaultHostPoolName      string = "hostpool"
 	defaultHostPoolNamespace string = "cloudkit-hostpool-orders"
-	cloudkitHostPoolPrefix   string = "cloudkit.openshift.io"
 )
 
 var (
-	cloudkitHostPoolNameLabel                 string = fmt.Sprintf("%s/hostpool", cloudkitHostPoolPrefix)
-	cloudkitHostPoolIDLabel                   string = fmt.Sprintf("%s/hostpool-uuid", cloudkitHostPoolPrefix)
-	hostPoolFinalizer                         string = fmt.Sprintf("%s/finalizer", cloudkitHostPoolPrefix)
-	cloudkitHostPoolManagementStateAnnotation string = fmt.Sprintf("%s/management-state", cloudkitHostPoolPrefix)
+	cloudkitHostPoolNameLabel                 string = fmt.Sprintf("%s/hostpool", cloudkitPrefix)
+	cloudkitHostPoolIDLabel                   string = fmt.Sprintf("%s/hostpool-uuid", cloudkitPrefix)
+	hostPoolFinalizer                         string = fmt.Sprintf("%s/finalizer", cloudkitPrefix)
+	cloudkitHostPoolManagementStateAnnotation string = fmt.Sprintf("%s/management-state", cloudkitPrefix)
 )
 
 func generateHostPoolNamespaceName(instance *v1alpha1.HostPool) string {

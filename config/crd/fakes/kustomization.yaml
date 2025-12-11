@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
 - hypershift.openshift.io_hostedclusters.yaml
 - hypershift.openshift.io_nodepools.yaml
+- k8s.ovn.org_userdefinednetworks.yaml

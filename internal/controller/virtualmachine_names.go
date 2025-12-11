@@ -24,17 +24,16 @@ import (
 
 const (
 	defaultVirtualMachineNamespace string = "cloudkit-vm-orders"
-	cloudkitVMNamePrefix           string = "cloudkit.openshift.io"
 )
 
 var (
-	cloudkitVirtualMachineNameLabel                  string = fmt.Sprintf("%s/virtualmachine", cloudkitVMNamePrefix)
-	cloudkitVirtualMachineIDLabel                    string = fmt.Sprintf("%s/virtualmachine-uuid", cloudkitVMNamePrefix)
-	cloudkitVirtualMachineFinalizer                  string = fmt.Sprintf("%s/virtualmachine", cloudkitVMNamePrefix)
-	cloudkitAAPVirtualMachineFinalizer               string = fmt.Sprintf("%s/virtualmachine-aap", cloudkitVMNamePrefix)
-	cloudkitVirtualMachineManagementStateAnnotation  string = fmt.Sprintf("%s/management-state", cloudkitVMNamePrefix)
-	cloudkitVirualMachineFloatingIPAddressAnnotation string = fmt.Sprintf("%s/floating-ip-address", cloudkitVMNamePrefix)
-	cloudkitAAPReconciledConfigVersionAnnotation     string = fmt.Sprintf("%s/reconciled-config-version", cloudkitVMNamePrefix)
+	cloudkitVirtualMachineNameLabel                  string = fmt.Sprintf("%s/virtualmachine", cloudkitPrefix)
+	cloudkitVirtualMachineIDLabel                    string = fmt.Sprintf("%s/virtualmachine-uuid", cloudkitPrefix)
+	cloudkitVirtualMachineFinalizer                  string = fmt.Sprintf("%s/virtualmachine", cloudkitPrefix)
+	cloudkitAAPVirtualMachineFinalizer               string = fmt.Sprintf("%s/virtualmachine-aap", cloudkitPrefix)
+	cloudkitVirtualMachineManagementStateAnnotation  string = fmt.Sprintf("%s/management-state", cloudkitPrefix)
+	cloudkitVirualMachineFloatingIPAddressAnnotation string = fmt.Sprintf("%s/floating-ip-address", cloudkitPrefix)
+	cloudkitAAPReconciledConfigVersionAnnotation     string = fmt.Sprintf("%s/reconciled-config-version", cloudkitPrefix)
 )
 
 func generateVirtualMachineNamespaceName(instance *v1alpha1.VirtualMachine) string {
