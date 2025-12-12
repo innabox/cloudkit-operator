@@ -192,6 +192,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	vmNamespace := os.Getenv("CLOUDKIT_VM_ORDER_NAMESPACE")
+
 	// Create the gRPC connection:
 	var grpcConn *grpc.ClientConn
 	if fulfillmentServerAddress != "" {
@@ -230,6 +232,20 @@ func main() {
 			)
 			os.Exit(1)
 		}
+
+		// Create the VirtualMachine feedback reconciler:
+		if err = (controller.NewVirtualMachineFeedbackReconciler(
+			mgr.GetClient(),
+			grpcConn,
+			vmNamespace,
+		)).SetupWithManager(mgr); err != nil {
+			setupLog.Error(
+				err,
+				"unable to create virtualmachine feedback controller",
+				"controller", "VirtualMachineFeedback",
+			)
+			os.Exit(1)
+		}
 	} else {
 		setupLog.Info("gRPC connection to fulfillment service is disabled")
 	}
@@ -246,18 +262,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (controller.NewVirtualMachineReconciler(
-		mgr.GetClient(),
-		mgr.GetScheme(),
-		os.Getenv("CLOUDKIT_VM_CREATE_WEBHOOK"),
-		os.Getenv("CLOUDKIT_VM_DELETE_WEBHOOK"),
-		os.Getenv("CLOUDKIT_VM_ORDER_NAMESPACE"),
-		minimumRequestInterval,
-	)).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "VirtualMachine")
-		os.Exit(1)
-	}
-
 	if err = (controller.NewHostPoolReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
@@ -270,21 +274,31 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create the VirtualMachine feedback reconciler if gRPC connection is available:
-	if grpcConn != nil {
-		if err = (controller.NewVirtualMachineFeedbackReconciler(
-			mgr.GetClient(),
-			grpcConn,
-			os.Getenv("CLOUDKIT_VM_ORDER_NAMESPACE"),
-		)).SetupWithManager(mgr); err != nil {
-			setupLog.Error(
-				err,
-				"unable to create virtualmachine feedback controller",
-				"controller", "VirtualMachineFeedback",
-			)
-			os.Exit(1)
-		}
+	// Create the VirtualMachine reconciler
+	if err = (controller.NewVirtualMachineReconciler(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		os.Getenv("CLOUDKIT_VM_CREATE_WEBHOOK"),
+		os.Getenv("CLOUDKIT_VM_DELETE_WEBHOOK"),
+		vmNamespace,
+		minimumRequestInterval,
+	)).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "VirtualMachine")
+		os.Exit(1)
 	}
+	// Tenant reconciler in VM namespace
+	if err := (controller.NewTenantReconciler(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		vmNamespace,
+	)).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Tenant", "namespace", vmNamespace)
+		os.Exit(1)
+	}
+	// VM feedback reconciler if gRPC connection is available
+	if grpcConn != nil {
+	}
+
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

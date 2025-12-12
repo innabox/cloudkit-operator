@@ -11,16 +11,13 @@ const (
 	defaultHostedClusterName     string = "cluster"
 	defaultRoleBindingName       string = "cloudkit"
 	defaultClusterOrderNamespace string = "cloudkit-orders"
-	cloudkitAppName              string = "cloudkit-operator"
-
-	cloudkitNamePrefix string = "cloudkit.openshift.io"
 )
 
 var (
-	cloudkitClusterOrderNameLabel     string = fmt.Sprintf("%s/clusterorder", cloudkitNamePrefix)
-	cloudkitClusterOrderIDLabel       string = fmt.Sprintf("%s/clusterorder-uuid", cloudkitNamePrefix)
-	cloudkitFinalizer                 string = fmt.Sprintf("%s/finalizer", cloudkitNamePrefix)
-	cloudkitManagementStateAnnotation string = fmt.Sprintf("%s/management-state", cloudkitNamePrefix)
+	cloudkitClusterOrderNameLabel     string = fmt.Sprintf("%s/clusterorder", cloudkitPrefix)
+	cloudkitClusterOrderIDLabel       string = fmt.Sprintf("%s/clusterorder-uuid", cloudkitPrefix)
+	cloudkitFinalizer                 string = fmt.Sprintf("%s/finalizer", cloudkitPrefix)
+	cloudkitManagementStateAnnotation string = fmt.Sprintf("%s/management-state", cloudkitPrefix)
 )
 
 func generateNamespaceName(instance *v1alpha1.ClusterOrder) string {
