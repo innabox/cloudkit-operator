@@ -35,6 +35,9 @@ var (
 	// tenantFinalizer is the finalizer used to clean up the tenant
 	tenantFinalizer string = fmt.Sprintf("%s/tenant", cloudkitPrefix)
 
+	// cloudkitTenantAnnotation is the annotation used to reference the tenant name
+	cloudkitTenantAnnotation string = fmt.Sprintf("%s/tenant", cloudkitPrefix)
+
 	// udnName is the default name of the user defined network created inside tenant's namespace
 	udnName = "udn"
 )

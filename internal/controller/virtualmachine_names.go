@@ -18,8 +18,6 @@ package controller
 
 import (
 	"fmt"
-
-	v1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
 )
 
 const (
@@ -35,7 +33,3 @@ var (
 	cloudkitVirualMachineFloatingIPAddressAnnotation string = fmt.Sprintf("%s/floating-ip-address", cloudkitPrefix)
 	cloudkitAAPReconciledConfigVersionAnnotation     string = fmt.Sprintf("%s/reconciled-config-version", cloudkitPrefix)
 )
-
-func generateVirtualMachineNamespaceName(instance *v1alpha1.VirtualMachine) string {
-	return fmt.Sprintf("%s-%s", instance.GetNamespace(), instance.GetName())
-}

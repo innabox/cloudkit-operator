@@ -41,20 +41,6 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 )
 
-// NewVMComponentFn is the type of a function that creates a required component
-type NewVMComponentFn func(context.Context, *v1alpha1.VirtualMachine) (*appResource, error)
-
-type vmComponent struct {
-	name string
-	fn   NewVMComponentFn
-}
-
-func (r *VirtualMachineReconciler) vmComponents() []vmComponent {
-	return []vmComponent{
-		{"Namespace", r.newNamespace},
-	}
-}
-
 // VirtualMachineReconciler reconciles a VirtualMachine object
 type VirtualMachineReconciler struct {
 	client.Client
@@ -122,12 +108,10 @@ func (r *VirtualMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		res, err = r.handleDelete(ctx, req, instance)
 	}
 
-	if err == nil {
-		if !equality.Semantic.DeepEqual(instance.Status, oldstatus) {
-			log.Info("status requires update")
-			if err := r.Status().Update(ctx, instance); err != nil {
-				return res, err
-			}
+	if !equality.Semantic.DeepEqual(instance.Status, *oldstatus) {
+		log.Info("status requires update")
+		if err := r.Status().Update(ctx, instance); err != nil {
+			return res, err
 		}
 	}
 
@@ -160,14 +144,18 @@ func (r *VirtualMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.VirtualMachine{}, builder.WithPredicates(VirtualMachineNamespacePredicate(r.VirtualMachineNamespace))).
 		Watches(
-			&corev1.Namespace{},
+			&kubevirtv1.VirtualMachine{},
 			handler.EnqueueRequestsFromMapFunc(r.mapObjectToVirtualMachine),
 			builder.WithPredicates(labelPredicate),
 		).
 		Watches(
-			&kubevirtv1.VirtualMachine{},
-			handler.EnqueueRequestsFromMapFunc(r.mapObjectToVirtualMachine),
-			builder.WithPredicates(labelPredicate),
+			&v1alpha1.Tenant{},
+			handler.EnqueueRequestForOwner(
+				mgr.GetScheme(),
+				mgr.GetRESTMapper(),
+				&v1alpha1.VirtualMachine{},
+			),
+			builder.WithPredicates(VirtualMachineNamespacePredicate(r.VirtualMachineNamespace)),
 		).
 		Complete(r)
 }
@@ -227,36 +215,31 @@ func (r *VirtualMachineReconciler) handleUpdate(ctx context.Context, _ ctrl.Requ
 		}
 	}
 
-	for _, component := range r.vmComponents() {
-		log.Info("handling component", "component", component.name)
-
-		resource, err := component.fn(ctx, instance)
-		if err != nil {
-			log.Error(err, "failed to mutate resource", "component", component.name)
-			return ctrl.Result{}, err
-		}
-
-		result, err := controllerutil.CreateOrUpdate(ctx, r.Client, resource.object, resource.mutateFn)
-		if err != nil {
-			log.Error(err, "failed to create or update component", "component", component.name)
-			return ctrl.Result{}, err
-		}
-		switch result {
-		case controllerutil.OperationResultCreated:
-			log.Info("created component", "component", component.name)
-		case controllerutil.OperationResultUpdated:
-			log.Info("updated component", "component", component.name)
-		}
-	}
-
-	instance.SetStatusCondition(v1alpha1.VirtualMachineConditionAccepted, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
-
-	ns, err := r.findNamespace(ctx, instance)
+	// Get the tenant
+	tenant, err := r.getTenant(ctx, instance)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	if kv, _ := r.findKubeVirtVMs(ctx, instance, ns.GetName()); kv != nil {
+	// If the tenant doesn't exist, create it and requeue
+	if tenant == nil {
+		return ctrl.Result{}, r.createOrUpdateTenant(ctx, instance)
+	}
+
+	// If the tenant is not ready, requeue
+	if tenant.Status.Phase != v1alpha1.TenantPhaseReady {
+		log.Info("tenant is not ready, requeueing", "tenant", tenant.GetName())
+		return ctrl.Result{}, nil
+	}
+
+	instance.SetStatusCondition(v1alpha1.VirtualMachineConditionAccepted, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
+
+	kv, err := r.findKubeVirtVMs(ctx, instance, tenant.Status.Namespace)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if kv != nil {
 		if err := r.handleKubeVirtVM(ctx, instance, kv); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -302,26 +285,6 @@ func (r *VirtualMachineReconciler) handleUpdate(ctx context.Context, _ ctrl.Requ
 	return ctrl.Result{}, nil
 }
 
-func (r *VirtualMachineReconciler) findNamespace(ctx context.Context, instance *v1alpha1.VirtualMachine) (*corev1.Namespace, error) {
-	log := ctrllog.FromContext(ctx)
-
-	var namespaceList corev1.NamespaceList
-	if err := r.List(ctx, &namespaceList, labelSelectorFromVirtualMachineInstance(instance)); err != nil {
-		log.Error(err, "failed to list namespaces")
-		return nil, err
-	}
-
-	if len(namespaceList.Items) > 1 {
-		return nil, fmt.Errorf("found too many (%d) matching namespaces for %s", len(namespaceList.Items), instance.GetName())
-	}
-
-	if len(namespaceList.Items) == 0 {
-		return nil, nil
-	}
-
-	return &namespaceList.Items[0], nil
-}
-
 func (r *VirtualMachineReconciler) handleDelete(ctx context.Context, _ ctrl.Request, instance *v1alpha1.VirtualMachine) (ctrl.Result, error) {
 	log := ctrllog.FromContext(ctx)
 	log.Info("deleting virtualmachine")
@@ -352,18 +315,6 @@ func (r *VirtualMachineReconciler) handleDelete(ctx context.Context, _ ctrl.Requ
 			}
 		}
 		return ctrl.Result{}, nil
-	}
-
-	if ns, err := r.findNamespace(ctx, instance); err == nil && ns != nil {
-		if ns.Status.Phase != corev1.NamespaceTerminating {
-			// Remove the namespace, and all resources in it
-			if err := r.Client.Delete(ctx, ns); err != nil {
-				log.Error(err, "failed to delete namespace", "namespace", ns.GetName(), "error", err)
-				return ctrl.Result{Requeue: true}, err
-			}
-		}
-		log.Info("namespace is terminating, requeue to wait for it to be deleted", "namespace", ns.GetName())
-		return ctrl.Result{Requeue: true}, nil
 	}
 
 	// Let this CR be deleted
@@ -439,11 +390,10 @@ func (r *VirtualMachineReconciler) findKubeVirtVMs(ctx context.Context, instance
 
 func (r *VirtualMachineReconciler) handleKubeVirtVM(ctx context.Context, instance *v1alpha1.VirtualMachine,
 	kv *kubevirtv1.VirtualMachine) error {
-
 	log := ctrllog.FromContext(ctx)
 
 	name := kv.GetName()
-	instance.SetVirtualMachineReferenceKubeVirtVirtalMachineName(name)
+	instance.SetVirtualMachineReferenceKubeVirtVirtualMachineName(name)
 	instance.SetVirtualMachineReferenceNamespace(kv.GetNamespace())
 	instance.SetStatusCondition(v1alpha1.VirtualMachineConditionAccepted, metav1.ConditionTrue, "", v1alpha1.ReasonAsExpected)
 

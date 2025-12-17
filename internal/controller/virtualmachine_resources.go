@@ -20,75 +20,70 @@ import (
 	"context"
 	"fmt"
 
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
+	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/innabox/cloudkit-operator/api/v1alpha1"
 )
 
-func (r *VirtualMachineReconciler) newNamespace(ctx context.Context, instance *v1alpha1.VirtualMachine) (*appResource, error) {
-	log := ctrllog.FromContext(ctx)
-
-	var namespaceList corev1.NamespaceList
-	var namespaceName string
-
-	if err := r.List(ctx, &namespaceList, labelSelectorFromVirtualMachineInstance(instance)); err != nil {
-		log.Error(err, "failed to list namespaces")
-		return nil, err
+// getTenant gets the tenant object from the cluster
+// If the tenant is not found, return nil and no error
+func (r *VirtualMachineReconciler) getTenant(ctx context.Context, instance *v1alpha1.VirtualMachine) (*v1alpha1.Tenant, error) {
+	if instance.GetTenantReferenceName() == "" || instance.GetTenantReferenceNamespace() == "" {
+		// tenant reference is not set because it doesn't exist yet
+		return nil, nil
 	}
 
-	if len(namespaceList.Items) > 1 {
-		return nil, fmt.Errorf("found multiple matching namespaces for %s", instance.GetName())
+	tenant := &v1alpha1.Tenant{}
+	err := r.Get(ctx, client.ObjectKey{Namespace: instance.GetTenantReferenceNamespace(), Name: instance.GetTenantReferenceName()}, tenant)
+	if err != nil {
+		return nil, client.IgnoreNotFound(err)
 	}
 
-	if len(namespaceList.Items) == 0 {
-		namespaceName = generateVirtualMachineNamespaceName(instance)
-		if namespaceName == "" {
-			return nil, fmt.Errorf("failed to generate namespace name")
-		}
-	} else {
-		namespaceName = namespaceList.Items[0].GetName()
+	return tenant, nil
+}
+
+// createOrUpdateTenant creates or updates the tenant object in the cluster in the namespace where the virtual machine lives
+func (r *VirtualMachineReconciler) createOrUpdateTenant(ctx context.Context, instance *v1alpha1.VirtualMachine) error {
+	tenantName, exists := instance.GetAnnotations()[cloudkitTenantAnnotation]
+	if !exists || tenantName == "" {
+		return fmt.Errorf("tenant name not found")
 	}
 
-	namespace := &corev1.Namespace{
-		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Namespace"},
+	tenant := &v1alpha1.Tenant{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   namespaceName,
-			Labels: commonLabelsFromVirtualMachine(instance),
+			Name:      getTenantObjectName(tenantName),
+			Namespace: instance.GetNamespace(),
+			Labels: map[string]string{
+				"app.kubernetes.io/name": cloudkitAppName,
+			},
+		},
+		Spec: v1alpha1.TenantSpec{
+			Name: tenantName,
 		},
 	}
 
-	mutateFn := func() error {
-		ensureCommonLabelsForVirtualMachine(instance, namespace)
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, tenant, func() error {
+		err := controllerutil.SetOwnerReference(instance, tenant, r.Scheme)
+		if err != nil {
+			return err
+		}
 		return nil
+	})
+
+	if err != nil {
+		return err
 	}
 
-	return &appResource{
-		namespace,
-		mutateFn,
-	}, nil
+	// Update the tenant reference
+	instance.SetTenantReferenceName(tenant.Name)
+	instance.SetTenantReferenceNamespace(tenant.GetNamespace())
+	return nil
 }
 
-func ensureCommonLabelsForVirtualMachine(instance *v1alpha1.VirtualMachine, obj client.Object) {
-	requiredLabels := commonLabelsFromVirtualMachine(instance)
-	objLabels := obj.GetLabels()
-	if objLabels == nil {
-		objLabels = make(map[string]string)
-	}
-	for k, v := range requiredLabels {
-		objLabels[k] = v
-	}
-	obj.SetLabels(objLabels)
-}
-
-func commonLabelsFromVirtualMachine(instance *v1alpha1.VirtualMachine) map[string]string {
-	key := client.ObjectKeyFromObject(instance)
-	return map[string]string{
-		"app.kubernetes.io/name":        cloudkitAppName,
-		cloudkitVirtualMachineNameLabel: key.Name,
-	}
+func getTenantObjectName(tenantName string) string {
+	return fmt.Sprintf("tenant-%s", encodeTenantName(tenantName))
 }
 
 func labelSelectorFromVirtualMachineInstance(instance *v1alpha1.VirtualMachine) client.MatchingLabels {
