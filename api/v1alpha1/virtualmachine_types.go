@@ -73,8 +73,16 @@ const (
 // VirtualMachineReferenceType contains a reference to the resources created by this VirtualMachine
 type VirtualMachineReferenceType struct {
 	// Namespace that contains the VirtualMachine resources
-	Namespace                 string `json:"namespace"`
-	KubeVirtVirtalMachineName string `json:"kubeVirtVirtalMachineName"`
+	Namespace                  string `json:"namespace"`
+	KubeVirtVirtualMachineName string `json:"kubeVirtVirtualMachineName"`
+}
+
+// TenantReferenceType contains a reference to the tenant that contains the VirtualMachine resources
+type TenantReferenceType struct {
+	// Name of the tenant
+	Name string `json:"name"`
+	// Namespace of the tenant
+	Namespace string `json:"namespace"`
 }
 
 // VirtualMachineStatus defines the observed state of VirtualMachine.
@@ -92,6 +100,10 @@ type VirtualMachineStatus struct {
 	// Reference to the namespace that contains VirtualMachine resources
 	// +kubebuilder:validation:Optional
 	VirtualMachineReference *VirtualMachineReferenceType `json:"virtualMachineReference,omitempty"`
+
+	// Reference to the tenant that contains the VirtualMachine resources
+	// +kubebuilder:validation:Optional
+	TenantReference *TenantReferenceType `json:"tenantReference,omitempty"`
 
 	// DesiredConfigVersion is the version (hash) of the desired configuration of the VirtualMachine
 	// +kubebuilder:validation:Optional

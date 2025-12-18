@@ -139,17 +139,31 @@ spec:
                 description: ReconciledConfigVersion is the version (hash) of the
                   reconciled configuration of the VirtualMachine
                 type: string
+              tenantReference:
+                description: Reference to the tenant that contains the VirtualMachine
+                  resources
+                properties:
+                  name:
+                    description: Name of the tenant
+                    type: string
+                  namespace:
+                    description: Namespace of the tenant
+                    type: string
+                required:
+                - name
+                - namespace
+                type: object
               virtualMachineReference:
                 description: Reference to the namespace that contains VirtualMachine
                   resources
                 properties:
-                  kubeVirtVirtalMachineName:
+                  kubeVirtVirtualMachineName:
                     type: string
                   namespace:
                     description: Namespace that contains the VirtualMachine resources
                     type: string
                 required:
-                - kubeVirtVirtalMachineName
+                - kubeVirtVirtualMachineName
                 - namespace
                 type: object
             type: object
