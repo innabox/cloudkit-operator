@@ -131,7 +131,7 @@ func (r *ClusterOrderReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	if err == nil {
-		if !equality.Semantic.DeepEqual(instance.Status, oldstatus) {
+		if !equality.Semantic.DeepEqual(instance.Status, *oldstatus) {
 			log.Info("status requires update")
 			if err := r.Status().Update(ctx, instance); err != nil {
 				return res, err
