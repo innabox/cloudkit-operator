@@ -30,6 +30,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+	ovnv1 "github.com/ovn-org/ovn-kubernetes/go-controller/pkg/crd/userdefinednetwork/v1"
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -63,6 +64,7 @@ func init() {
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
 	utilruntime.Must(hypershiftv1beta1.AddToScheme(scheme))
 	utilruntime.Must(kubevirtv1.AddToScheme(scheme))
+	utilruntime.Must(ovnv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -192,6 +194,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	vmNamespace := os.Getenv("CLOUDKIT_VM_ORDER_NAMESPACE")
+
 	// Create the gRPC connection:
 	var grpcConn *grpc.ClientConn
 	if fulfillmentServerAddress != "" {
@@ -230,6 +234,20 @@ func main() {
 			)
 			os.Exit(1)
 		}
+
+		// Create the VirtualMachine feedback reconciler:
+		if err = (controller.NewVirtualMachineFeedbackReconciler(
+			mgr.GetClient(),
+			grpcConn,
+			vmNamespace,
+		)).SetupWithManager(mgr); err != nil {
+			setupLog.Error(
+				err,
+				"unable to create virtualmachine feedback controller",
+				"controller", "VirtualMachineFeedback",
+			)
+			os.Exit(1)
+		}
 	} else {
 		setupLog.Info("gRPC connection to fulfillment service is disabled")
 	}
@@ -246,18 +264,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (controller.NewVirtualMachineReconciler(
-		mgr.GetClient(),
-		mgr.GetScheme(),
-		os.Getenv("CLOUDKIT_VM_CREATE_WEBHOOK"),
-		os.Getenv("CLOUDKIT_VM_DELETE_WEBHOOK"),
-		os.Getenv("CLOUDKIT_VM_ORDER_NAMESPACE"),
-		minimumRequestInterval,
-	)).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "VirtualMachine")
-		os.Exit(1)
-	}
-
 	if err = (controller.NewHostPoolReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
@@ -270,21 +276,28 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create the VirtualMachine feedback reconciler if gRPC connection is available:
-	if grpcConn != nil {
-		if err = (controller.NewVirtualMachineFeedbackReconciler(
-			mgr.GetClient(),
-			grpcConn,
-			os.Getenv("CLOUDKIT_VM_ORDER_NAMESPACE"),
-		)).SetupWithManager(mgr); err != nil {
-			setupLog.Error(
-				err,
-				"unable to create virtualmachine feedback controller",
-				"controller", "VirtualMachineFeedback",
-			)
-			os.Exit(1)
-		}
+	// Create the VirtualMachine reconciler
+	if err = (controller.NewVirtualMachineReconciler(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		os.Getenv("CLOUDKIT_VM_CREATE_WEBHOOK"),
+		os.Getenv("CLOUDKIT_VM_DELETE_WEBHOOK"),
+		vmNamespace,
+		minimumRequestInterval,
+	)).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "VirtualMachine")
+		os.Exit(1)
 	}
+	// Tenant reconciler in VM namespace
+	if err := (controller.NewTenantReconciler(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		vmNamespace,
+	)).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Tenant", "namespace", vmNamespace)
+		os.Exit(1)
+	}
+
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
