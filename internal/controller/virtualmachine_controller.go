@@ -271,14 +271,8 @@ func (r *VirtualMachineReconciler) handleUpdate(ctx context.Context, _ ctrl.Requ
 			remainingTime, err := r.webhookClient.TriggerWebhook(ctx, url, instance)
 			if err != nil {
 				log.Error(err, "failed to trigger webhook", "url", url, "error", err)
-				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 			}
-
-			// Verify if we are within the minimum request window
-			if remainingTime != 0 {
-				log.Info("request is within minimum request window", "url", url)
-				return ctrl.Result{RequeueAfter: remainingTime}, nil
-			}
+			return ctrl.Result{RequeueAfter: remainingTime}, nil
 		}
 	}
 
@@ -306,12 +300,8 @@ func (r *VirtualMachineReconciler) handleDelete(ctx context.Context, _ ctrl.Requ
 				remainingTime, err := r.webhookClient.TriggerWebhook(ctx, url, instance)
 				if err != nil {
 					log.Error(err, "failed to trigger webhook", "url", url, "error", err)
-					return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 				}
-
-				if remainingTime != 0 {
-					return ctrl.Result{RequeueAfter: remainingTime}, nil
-				}
+				return ctrl.Result{RequeueAfter: remainingTime}, nil
 			}
 		}
 		return ctrl.Result{}, nil

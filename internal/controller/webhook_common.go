@@ -57,20 +57,20 @@ func NewWebhookClient(timeout, minimumRequestInterval time.Duration) *WebhookCli
 
 // checkForExistingRequest checks if there's already an inflight request for the given resource
 func (wc *WebhookClient) checkForExistingRequest(ctx context.Context, url, resourceName string) time.Duration {
-	var delta time.Duration
+	var elapsed time.Duration
 
 	log := ctrllog.FromContext(ctx)
 	cacheKey := fmt.Sprintf("%s:%s", url, resourceName)
 	if value, ok := wc.inflightRequests.Load(cacheKey); ok {
 		request := value.(InflightRequest)
-		delta = time.Since(request.createTime)
-		if delta >= wc.minimumRequestInterval {
-			delta = 0
+		elapsed = time.Since(request.createTime)
+		if elapsed >= wc.minimumRequestInterval {
+			elapsed = 0
 		}
-		log.Info("skip webhook (resource found in cache)", "url", url, "resource", resourceName, "delta", delta, "minimumRequestInterval", wc.minimumRequestInterval)
+		log.Info("skip webhook (resource found in cache)", "url", url, "resource", resourceName, "elapsed", elapsed, "minimumRequestInterval", wc.minimumRequestInterval)
 	}
 	wc.purgeExpiredRequests(ctx)
-	return delta
+	return elapsed
 }
 
 // addInflightRequest adds a new inflight request to the cache
@@ -90,7 +90,7 @@ func (wc *WebhookClient) purgeExpiredRequests(ctx context.Context) {
 	wc.inflightRequests.Range(func(key, value any) bool {
 		cacheKey := key.(string)
 		request := value.(InflightRequest)
-		if delta := time.Since(request.createTime); delta > wc.minimumRequestInterval {
+		if elapsed := time.Since(request.createTime); elapsed > wc.minimumRequestInterval {
 			log.Info("expire cache entry for webhook", "cacheKey", cacheKey, "minimumRequestInterval", wc.minimumRequestInterval)
 			wc.inflightRequests.Delete(cacheKey)
 		}
@@ -102,20 +102,21 @@ func (wc *WebhookClient) purgeExpiredRequests(ctx context.Context) {
 func (wc *WebhookClient) TriggerWebhook(ctx context.Context, url string, resource WebhookResource) (time.Duration, error) {
 	log := ctrllog.FromContext(ctx)
 
-	if delta := wc.checkForExistingRequest(ctx, url, resource.GetName()); delta != 0 {
-		return delta, nil
+	if elapsed := wc.checkForExistingRequest(ctx, url, resource.GetName()); elapsed != 0 {
+		// return the time remaining until the minimum request interval is met
+		return wc.minimumRequestInterval - elapsed, nil
 	}
 
 	log.Info("trigger webhook", "url", url, "resource", resource.GetName())
 
 	jsonData, err := json.Marshal(resource)
 	if err != nil {
-		return 0, fmt.Errorf("failed to marshal JSON: %w", err)
+		return wc.minimumRequestInterval, fmt.Errorf("failed to marshal JSON: %w", err)
 	}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return 0, fmt.Errorf("failed to create request: %w", err)
+		return wc.minimumRequestInterval, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -123,17 +124,17 @@ func (wc *WebhookClient) TriggerWebhook(ctx context.Context, url string, resourc
 	client := &http.Client{Timeout: wc.clientTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("failed to send request: %w", err)
+		return wc.minimumRequestInterval, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
 	// Check response status
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return 0, fmt.Errorf("received non-success status code: %d", resp.StatusCode)
+		return wc.minimumRequestInterval, fmt.Errorf("received non-success status code: %d", resp.StatusCode)
 	}
 
 	wc.addInflightRequest(ctx, url, resource.GetName())
-	return 0, nil
+	return wc.minimumRequestInterval, nil
 }
 
 // ResetCache clears all inflight requests (useful for testing)
