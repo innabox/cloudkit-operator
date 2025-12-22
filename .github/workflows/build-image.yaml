@@ -1,11 +1,14 @@
 name: Build container image
 
 on:
-  workflow_dispatch:
   pull_request:
   push:
-    branches:
-    - main
+    branches-ignore: [main]
+  workflow_call:
+    inputs:
+      imageTag:
+        type: string
+        description: "Tag for docker image"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -17,10 +20,8 @@ env:
   # github.repository as <account>/<repo>
   IMAGE_NAME: ${{ github.repository }}
 
-
 jobs:
   build:
-
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -29,6 +30,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          fetch-tags: true
 
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action
@@ -39,6 +42,42 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Parse semver components from imageTag input. When we call this
+      # workflow from the release workflow, we provide an explicit version
+      # string, which bypasses the the regular versioning behavior of
+      # docker/metadata-action. We reproduce that behavior here.
+      - name: Parse semver components
+        if: inputs.imageTag != ''
+        id: parse-version
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ inputs.imageTag }}';
+
+            // Match semver pattern: v1.2.3 or v1.2.3-prerelease
+            const match = version.match(/^v?(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/);
+
+            if (!match) {
+              core.setFailed(`Invalid semver format: ${version}`);
+              return;
+            }
+
+            const [, major, minor, patch, prerelease] = match;
+            const fullVersion = `v${major}.${minor}.${patch}${prerelease ? '-' + prerelease : ''}`;
+
+            // Always output the full version
+            core.setOutput('patch', fullVersion);
+
+            // Only output major and minor for stable releases (no pre-release suffix)
+            if (!prerelease) {
+              core.setOutput('major', `v${major}`);
+              core.setOutput('minor', `v${major}.${minor}`);
+            } else {
+              core.info(`Pre-release version detected (${version}), skipping major/minor tags`);
+              core.setOutput('major', '');
+              core.setOutput('minor', '');
+            }
 
       # Extract metadata (tags, labels) for Docker
       # https://github.com/docker/metadata-action
@@ -55,8 +94,10 @@ jobs:
             type=ref,event=pr
             type=ref,event=tag
             type=sha
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
-
+            type=raw,value=${{ steps.parse-version.outputs.patch }},enable=${{ steps.parse-version.outputs.patch != '' }}
+            type=raw,value=${{ steps.parse-version.outputs.minor }},enable=${{ steps.parse-version.outputs.minor != '' }}
+            type=raw,value=${{ steps.parse-version.outputs.major }},enable=${{ steps.parse-version.outputs.major != '' }}
+            type=raw,value=latest,enable=${{ steps.parse-version.outputs.patch != '' && !contains(steps.parse-version.outputs.patch, '-') }}
 
       # Build and push Docker image with Buildx (don't push on PR)
       # https://github.com/docker/build-push-action

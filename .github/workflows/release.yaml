@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yaml
+
+  release:
+    needs: [test]
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.semver.outputs.next }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Calculate version
+        id: semver
+        uses: ietf-tools/semver-action@v1
+        with:
+          token: ${{ github.token }}
+          noVersionBumpBehavior: warn
+
+      - name: Create release
+        if: steps.semver.outputs.next != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create ${{ steps.semver.outputs.next }} --generate-notes
+
+  build-image:
+    permissions:
+      contents: read
+      packages: write
+    needs: [release]
+    uses: ./.github/workflows/build-image.yaml
+    with:
+      imageTag: ${{ needs.release.outputs.version }}
