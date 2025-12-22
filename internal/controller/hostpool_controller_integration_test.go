@@ -1,3 +1,5 @@
+//go:build integration
+
 /*
 Copyright 2025.
 
@@ -30,7 +32,7 @@ import (
 	v1alpha1 "github.com/innabox/cloudkit-operator/api/v1alpha1"
 )
 
-var _ = Describe("ClusterOrder Controller", func() {
+var _ = Describe("HostPool Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
 
@@ -40,19 +42,28 @@ var _ = Describe("ClusterOrder Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		clusterorder := &v1alpha1.ClusterOrder{}
+		hostpool := &v1alpha1.HostPool{}
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind ClusterOrder")
-			err := k8sClient.Get(ctx, typeNamespacedName, clusterorder)
+			By("creating the custom resource for the Kind HostPool")
+			err := k8sClient.Get(ctx, typeNamespacedName, hostpool)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &v1alpha1.ClusterOrder{
+				resource := &v1alpha1.HostPool{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					Spec: v1alpha1.ClusterOrderSpec{
-						TemplateID: "test",
+					Spec: v1alpha1.HostPoolSpec{
+						HostSets: []v1alpha1.HostSet{
+							{
+								HostClass: "fc430",
+								Size:      3,
+							},
+							{
+								HostClass: "fc830",
+								Size:      1,
+							},
+						},
 					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
@@ -61,16 +72,16 @@ var _ = Describe("ClusterOrder Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &v1alpha1.ClusterOrder{}
+			resource := &v1alpha1.HostPool{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance ClusterOrder")
+			By("Cleanup the specific resource instance HostPool")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
-			controllerReconciler := &ClusterOrderReconciler{
+			controllerReconciler := &HostPoolReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}
