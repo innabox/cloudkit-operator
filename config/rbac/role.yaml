@@ -21,9 +21,9 @@ rules:
   - cloudkit.openshift.io
   resources:
   - clusterorders
+  - computeinstances
   - hostpools
   - tenants
-  - virtualmachines
   verbs:
   - create
   - delete
@@ -36,18 +36,18 @@ rules:
   - cloudkit.openshift.io
   resources:
   - clusterorders/finalizers
+  - computeinstances/finalizers
   - hostpools/finalizers
   - tenants/finalizers
-  - virtualmachines/finalizers
   verbs:
   - update
 - apiGroups:
   - cloudkit.openshift.io
   resources:
   - clusterorders/status
+  - computeinstances/status
   - hostpools/status
   - tenants/status
-  - virtualmachines/status
   verbs:
   - get
   - patch
@@ -76,7 +76,7 @@ rules:
 - apiGroups:
   - kubevirt.io
   resources:
-  - virtualmachines
+  - computeinstances
   verbs:
   - get
   - list

@@ -37,6 +37,7 @@ const (
 	ClusterTemplates_Create_FullMethodName = "/private.v1.ClusterTemplates/Create"
 	ClusterTemplates_Delete_FullMethodName = "/private.v1.ClusterTemplates/Delete"
 	ClusterTemplates_Update_FullMethodName = "/private.v1.ClusterTemplates/Update"
+	ClusterTemplates_Signal_FullMethodName = "/private.v1.ClusterTemplates/Signal"
 )
 
 // ClusterTemplatesClient is the client API for ClusterTemplates service.
@@ -48,6 +49,8 @@ type ClusterTemplatesClient interface {
 	Create(ctx context.Context, in *ClusterTemplatesCreateRequest, opts ...grpc.CallOption) (*ClusterTemplatesCreateResponse, error)
 	Delete(ctx context.Context, in *ClusterTemplatesDeleteRequest, opts ...grpc.CallOption) (*ClusterTemplatesDeleteResponse, error)
 	Update(ctx context.Context, in *ClusterTemplatesUpdateRequest, opts ...grpc.CallOption) (*ClusterTemplatesUpdateResponse, error)
+	// Indicates that something changed in the object or the system that may require reconciling the object.
+	Signal(ctx context.Context, in *ClusterTemplatesSignalRequest, opts ...grpc.CallOption) (*ClusterTemplatesSignalResponse, error)
 }
 
 type clusterTemplatesClient struct {
@@ -108,6 +111,16 @@ func (c *clusterTemplatesClient) Update(ctx context.Context, in *ClusterTemplate
 	return out, nil
 }
 
+func (c *clusterTemplatesClient) Signal(ctx context.Context, in *ClusterTemplatesSignalRequest, opts ...grpc.CallOption) (*ClusterTemplatesSignalResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClusterTemplatesSignalResponse)
+	err := c.cc.Invoke(ctx, ClusterTemplates_Signal_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterTemplatesServer is the server API for ClusterTemplates service.
 // All implementations must embed UnimplementedClusterTemplatesServer
 // for forward compatibility.
@@ -117,6 +130,8 @@ type ClusterTemplatesServer interface {
 	Create(context.Context, *ClusterTemplatesCreateRequest) (*ClusterTemplatesCreateResponse, error)
 	Delete(context.Context, *ClusterTemplatesDeleteRequest) (*ClusterTemplatesDeleteResponse, error)
 	Update(context.Context, *ClusterTemplatesUpdateRequest) (*ClusterTemplatesUpdateResponse, error)
+	// Indicates that something changed in the object or the system that may require reconciling the object.
+	Signal(context.Context, *ClusterTemplatesSignalRequest) (*ClusterTemplatesSignalResponse, error)
 	mustEmbedUnimplementedClusterTemplatesServer()
 }
 
@@ -141,6 +156,9 @@ func (UnimplementedClusterTemplatesServer) Delete(context.Context, *ClusterTempl
 }
 func (UnimplementedClusterTemplatesServer) Update(context.Context, *ClusterTemplatesUpdateRequest) (*ClusterTemplatesUpdateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Update not implemented")
+}
+func (UnimplementedClusterTemplatesServer) Signal(context.Context, *ClusterTemplatesSignalRequest) (*ClusterTemplatesSignalResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Signal not implemented")
 }
 func (UnimplementedClusterTemplatesServer) mustEmbedUnimplementedClusterTemplatesServer() {}
 func (UnimplementedClusterTemplatesServer) testEmbeddedByValue()                          {}
@@ -253,6 +271,24 @@ func _ClusterTemplates_Update_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterTemplates_Signal_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClusterTemplatesSignalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterTemplatesServer).Signal(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterTemplates_Signal_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterTemplatesServer).Signal(ctx, req.(*ClusterTemplatesSignalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClusterTemplates_ServiceDesc is the grpc.ServiceDesc for ClusterTemplates service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -279,6 +315,10 @@ var ClusterTemplates_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Update",
 			Handler:    _ClusterTemplates_Update_Handler,
+		},
+		{
+			MethodName: "Signal",
+			Handler:    _ClusterTemplates_Signal_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
