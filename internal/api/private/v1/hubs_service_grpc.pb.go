@@ -37,6 +37,7 @@ const (
 	Hubs_Create_FullMethodName = "/private.v1.Hubs/Create"
 	Hubs_Delete_FullMethodName = "/private.v1.Hubs/Delete"
 	Hubs_Update_FullMethodName = "/private.v1.Hubs/Update"
+	Hubs_Signal_FullMethodName = "/private.v1.Hubs/Signal"
 )
 
 // HubsClient is the client API for Hubs service.
@@ -48,6 +49,8 @@ type HubsClient interface {
 	Create(ctx context.Context, in *HubsCreateRequest, opts ...grpc.CallOption) (*HubsCreateResponse, error)
 	Delete(ctx context.Context, in *HubsDeleteRequest, opts ...grpc.CallOption) (*HubsDeleteResponse, error)
 	Update(ctx context.Context, in *HubsUpdateRequest, opts ...grpc.CallOption) (*HubsUpdateResponse, error)
+	// Indicates that something changed in the object or the system that may require reconciling the object.
+	Signal(ctx context.Context, in *HubsSignalRequest, opts ...grpc.CallOption) (*HubsSignalResponse, error)
 }
 
 type hubsClient struct {
@@ -108,6 +111,16 @@ func (c *hubsClient) Update(ctx context.Context, in *HubsUpdateRequest, opts ...
 	return out, nil
 }
 
+func (c *hubsClient) Signal(ctx context.Context, in *HubsSignalRequest, opts ...grpc.CallOption) (*HubsSignalResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HubsSignalResponse)
+	err := c.cc.Invoke(ctx, Hubs_Signal_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HubsServer is the server API for Hubs service.
 // All implementations must embed UnimplementedHubsServer
 // for forward compatibility.
@@ -117,6 +130,8 @@ type HubsServer interface {
 	Create(context.Context, *HubsCreateRequest) (*HubsCreateResponse, error)
 	Delete(context.Context, *HubsDeleteRequest) (*HubsDeleteResponse, error)
 	Update(context.Context, *HubsUpdateRequest) (*HubsUpdateResponse, error)
+	// Indicates that something changed in the object or the system that may require reconciling the object.
+	Signal(context.Context, *HubsSignalRequest) (*HubsSignalResponse, error)
 	mustEmbedUnimplementedHubsServer()
 }
 
@@ -141,6 +156,9 @@ func (UnimplementedHubsServer) Delete(context.Context, *HubsDeleteRequest) (*Hub
 }
 func (UnimplementedHubsServer) Update(context.Context, *HubsUpdateRequest) (*HubsUpdateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Update not implemented")
+}
+func (UnimplementedHubsServer) Signal(context.Context, *HubsSignalRequest) (*HubsSignalResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Signal not implemented")
 }
 func (UnimplementedHubsServer) mustEmbedUnimplementedHubsServer() {}
 func (UnimplementedHubsServer) testEmbeddedByValue()              {}
@@ -253,6 +271,24 @@ func _Hubs_Update_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Hubs_Signal_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HubsSignalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HubsServer).Signal(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Hubs_Signal_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HubsServer).Signal(ctx, req.(*HubsSignalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Hubs_ServiceDesc is the grpc.ServiceDesc for Hubs service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -279,6 +315,10 @@ var Hubs_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Update",
 			Handler:    _Hubs_Update_Handler,
+		},
+		{
+			MethodName: "Signal",
+			Handler:    _Hubs_Signal_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

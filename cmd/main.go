@@ -194,7 +194,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	vmNamespace := os.Getenv("CLOUDKIT_VM_ORDER_NAMESPACE")
+	computeInstanceNamespace := os.Getenv("CLOUDKIT_COMPUTE_INSTANCE_ORDER_NAMESPACE")
 
 	// Create the gRPC connection:
 	var grpcConn *grpc.ClientConn
@@ -235,16 +235,16 @@ func main() {
 			os.Exit(1)
 		}
 
-		// Create the VirtualMachine feedback reconciler:
-		if err = (controller.NewVirtualMachineFeedbackReconciler(
+		// Create the ComputeInstance feedback reconciler:
+		if err = (controller.NewComputeInstanceFeedbackReconciler(
 			mgr.GetClient(),
 			grpcConn,
-			vmNamespace,
+			computeInstanceNamespace,
 		)).SetupWithManager(mgr); err != nil {
 			setupLog.Error(
 				err,
-				"unable to create virtualmachine feedback controller",
-				"controller", "VirtualMachineFeedback",
+				"unable to create computeinstance feedback controller",
+				"controller", "ComputeInstanceFeedback",
 			)
 			os.Exit(1)
 		}
@@ -276,25 +276,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create the VirtualMachine reconciler
-	if err = (controller.NewVirtualMachineReconciler(
+	// Create the ComputeInstance reconciler
+	if err = (controller.NewComputeInstanceReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
-		os.Getenv("CLOUDKIT_VM_CREATE_WEBHOOK"),
-		os.Getenv("CLOUDKIT_VM_DELETE_WEBHOOK"),
-		vmNamespace,
+		os.Getenv("CLOUDKIT_COMPUTE_INSTANCE_CREATE_WEBHOOK"),
+		os.Getenv("CLOUDKIT_COMPUTE_INSTANCE_DELETE_WEBHOOK"),
+		computeInstanceNamespace,
 		minimumRequestInterval,
 	)).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "VirtualMachine")
+		setupLog.Error(err, "unable to create controller", "controller", "ComputeInstance")
 		os.Exit(1)
 	}
-	// Tenant reconciler in VM namespace
+	// Tenant reconciler in ComputeInstance namespace
 	if err := (controller.NewTenantReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
-		vmNamespace,
+		computeInstanceNamespace,
 	)).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Tenant", "namespace", vmNamespace)
+		setupLog.Error(err, "unable to create controller", "controller", "Tenant", "namespace", computeInstanceNamespace)
 		os.Exit(1)
 	}
 

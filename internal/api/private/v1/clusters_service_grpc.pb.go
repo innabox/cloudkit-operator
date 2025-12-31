@@ -37,6 +37,7 @@ const (
 	Clusters_Create_FullMethodName = "/private.v1.Clusters/Create"
 	Clusters_Delete_FullMethodName = "/private.v1.Clusters/Delete"
 	Clusters_Update_FullMethodName = "/private.v1.Clusters/Update"
+	Clusters_Signal_FullMethodName = "/private.v1.Clusters/Signal"
 )
 
 // ClustersClient is the client API for Clusters service.
@@ -48,6 +49,8 @@ type ClustersClient interface {
 	Create(ctx context.Context, in *ClustersCreateRequest, opts ...grpc.CallOption) (*ClustersCreateResponse, error)
 	Delete(ctx context.Context, in *ClustersDeleteRequest, opts ...grpc.CallOption) (*ClustersDeleteResponse, error)
 	Update(ctx context.Context, in *ClustersUpdateRequest, opts ...grpc.CallOption) (*ClustersUpdateResponse, error)
+	// Indicates that something changed in the object or the system that may require reconciling the object.
+	Signal(ctx context.Context, in *ClustersSignalRequest, opts ...grpc.CallOption) (*ClustersSignalResponse, error)
 }
 
 type clustersClient struct {
@@ -108,6 +111,16 @@ func (c *clustersClient) Update(ctx context.Context, in *ClustersUpdateRequest, 
 	return out, nil
 }
 
+func (c *clustersClient) Signal(ctx context.Context, in *ClustersSignalRequest, opts ...grpc.CallOption) (*ClustersSignalResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClustersSignalResponse)
+	err := c.cc.Invoke(ctx, Clusters_Signal_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClustersServer is the server API for Clusters service.
 // All implementations must embed UnimplementedClustersServer
 // for forward compatibility.
@@ -117,6 +130,8 @@ type ClustersServer interface {
 	Create(context.Context, *ClustersCreateRequest) (*ClustersCreateResponse, error)
 	Delete(context.Context, *ClustersDeleteRequest) (*ClustersDeleteResponse, error)
 	Update(context.Context, *ClustersUpdateRequest) (*ClustersUpdateResponse, error)
+	// Indicates that something changed in the object or the system that may require reconciling the object.
+	Signal(context.Context, *ClustersSignalRequest) (*ClustersSignalResponse, error)
 	mustEmbedUnimplementedClustersServer()
 }
 
@@ -141,6 +156,9 @@ func (UnimplementedClustersServer) Delete(context.Context, *ClustersDeleteReques
 }
 func (UnimplementedClustersServer) Update(context.Context, *ClustersUpdateRequest) (*ClustersUpdateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Update not implemented")
+}
+func (UnimplementedClustersServer) Signal(context.Context, *ClustersSignalRequest) (*ClustersSignalResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Signal not implemented")
 }
 func (UnimplementedClustersServer) mustEmbedUnimplementedClustersServer() {}
 func (UnimplementedClustersServer) testEmbeddedByValue()                  {}
@@ -253,6 +271,24 @@ func _Clusters_Update_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Clusters_Signal_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClustersSignalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClustersServer).Signal(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Clusters_Signal_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClustersServer).Signal(ctx, req.(*ClustersSignalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Clusters_ServiceDesc is the grpc.ServiceDesc for Clusters service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -279,6 +315,10 @@ var Clusters_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Update",
 			Handler:    _Clusters_Update_Handler,
+		},
+		{
+			MethodName: "Signal",
+			Handler:    _Clusters_Signal_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
