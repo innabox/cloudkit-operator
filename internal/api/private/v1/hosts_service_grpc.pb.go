@@ -37,6 +37,7 @@ const (
 	Hosts_Create_FullMethodName = "/private.v1.Hosts/Create"
 	Hosts_Delete_FullMethodName = "/private.v1.Hosts/Delete"
 	Hosts_Update_FullMethodName = "/private.v1.Hosts/Update"
+	Hosts_Signal_FullMethodName = "/private.v1.Hosts/Signal"
 )
 
 // HostsClient is the client API for Hosts service.
@@ -48,6 +49,8 @@ type HostsClient interface {
 	Create(ctx context.Context, in *HostsCreateRequest, opts ...grpc.CallOption) (*HostsCreateResponse, error)
 	Delete(ctx context.Context, in *HostsDeleteRequest, opts ...grpc.CallOption) (*HostsDeleteResponse, error)
 	Update(ctx context.Context, in *HostsUpdateRequest, opts ...grpc.CallOption) (*HostsUpdateResponse, error)
+	// Indicates that something changed in the object or the system that may require reconciling the object.
+	Signal(ctx context.Context, in *HostsSignalRequest, opts ...grpc.CallOption) (*HostsSignalResponse, error)
 }
 
 type hostsClient struct {
@@ -108,6 +111,16 @@ func (c *hostsClient) Update(ctx context.Context, in *HostsUpdateRequest, opts .
 	return out, nil
 }
 
+func (c *hostsClient) Signal(ctx context.Context, in *HostsSignalRequest, opts ...grpc.CallOption) (*HostsSignalResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HostsSignalResponse)
+	err := c.cc.Invoke(ctx, Hosts_Signal_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HostsServer is the server API for Hosts service.
 // All implementations must embed UnimplementedHostsServer
 // for forward compatibility.
@@ -117,6 +130,8 @@ type HostsServer interface {
 	Create(context.Context, *HostsCreateRequest) (*HostsCreateResponse, error)
 	Delete(context.Context, *HostsDeleteRequest) (*HostsDeleteResponse, error)
 	Update(context.Context, *HostsUpdateRequest) (*HostsUpdateResponse, error)
+	// Indicates that something changed in the object or the system that may require reconciling the object.
+	Signal(context.Context, *HostsSignalRequest) (*HostsSignalResponse, error)
 	mustEmbedUnimplementedHostsServer()
 }
 
@@ -141,6 +156,9 @@ func (UnimplementedHostsServer) Delete(context.Context, *HostsDeleteRequest) (*H
 }
 func (UnimplementedHostsServer) Update(context.Context, *HostsUpdateRequest) (*HostsUpdateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Update not implemented")
+}
+func (UnimplementedHostsServer) Signal(context.Context, *HostsSignalRequest) (*HostsSignalResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Signal not implemented")
 }
 func (UnimplementedHostsServer) mustEmbedUnimplementedHostsServer() {}
 func (UnimplementedHostsServer) testEmbeddedByValue()               {}
@@ -253,6 +271,24 @@ func _Hosts_Update_Handler(srv interface{}, ctx context.Context, dec func(interf
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Hosts_Signal_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HostsSignalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostsServer).Signal(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Hosts_Signal_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostsServer).Signal(ctx, req.(*HostsSignalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Hosts_ServiceDesc is the grpc.ServiceDesc for Hosts service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -279,6 +315,10 @@ var Hosts_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Update",
 			Handler:    _Hosts_Update_Handler,
+		},
+		{
+			MethodName: "Signal",
+			Handler:    _Hosts_Signal_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
