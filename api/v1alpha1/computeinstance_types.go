@@ -150,7 +150,7 @@ type ComputeInstanceList struct {
 
 // GetName returns the name of the ComputeInstance resource
 func (ci *ComputeInstance) GetName() string {
-	return ci.Name
+	return ci.ObjectMeta.Name
 }
 
 func init() {

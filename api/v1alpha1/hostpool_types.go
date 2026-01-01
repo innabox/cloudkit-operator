@@ -133,7 +133,7 @@ type HostPoolList struct {
 
 // GetName returns the name of the HostPool resource
 func (hp *HostPool) GetName() string {
-	return hp.Name
+	return hp.ObjectMeta.Name
 }
 
 func init() {
