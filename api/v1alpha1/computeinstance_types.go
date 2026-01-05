@@ -70,11 +70,11 @@ const (
 	ComputeInstanceConditionDeleting ComputeInstanceConditionType = "Deleting"
 )
 
-// ComputeInstanceReferenceType contains a reference to the resources created by this ComputeInstance
-type ComputeInstanceReferenceType struct {
-	// Namespace that contains the ComputeInstance resources
-	Namespace                   string `json:"namespace"`
-	KubeVirtComputeInstanceName string `json:"kubeVirtComputeInstanceName"`
+// VirtualMachineReferenceType contains a reference to the KubeVirt VirtualMachine CR created by this ComputeInstance
+type VirtualMachineReferenceType struct {
+	// Namespace that contains the VirtualMachine resources
+	Namespace                  string `json:"namespace"`
+	KubeVirtVirtualMachineName string `json:"kubeVirtVirtualMachineName"`
 }
 
 // TenantReferenceType contains a reference to the tenant that contains the ComputeInstance resources
@@ -97,9 +97,9 @@ type ComputeInstanceStatus struct {
 	// +kubebuilder:validation:Optional
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 
-	// Reference to the namespace that contains ComputeInstance resources
+	// Reference to the KubeVirt VirtualMachine CR created by this ComputeInstance
 	// +kubebuilder:validation:Optional
-	ComputeInstanceReference *ComputeInstanceReferenceType `json:"computeInstanceReference,omitempty"`
+	VirtualMachineReference *VirtualMachineReferenceType `json:"virtualMachineReference,omitempty"`
 
 	// Reference to the tenant that contains the ComputeInstance resources
 	// +kubebuilder:validation:Optional
