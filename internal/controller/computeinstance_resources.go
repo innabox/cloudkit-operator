@@ -44,7 +44,7 @@ func (r *ComputeInstanceReconciler) getTenant(ctx context.Context, instance *v1a
 	return tenant, nil
 }
 
-// createOrUpdateTenant creates or updates the tenant object in the cluster in the namespace where the virtual machine lives
+// createOrUpdateTenant creates or updates the tenant object in the cluster in the namespace where the compute instance lives
 func (r *ComputeInstanceReconciler) createOrUpdateTenant(ctx context.Context, instance *v1alpha1.ComputeInstance) error {
 	tenantName, exists := instance.GetAnnotations()[cloudkitTenantAnnotation]
 	if !exists || tenantName == "" {

@@ -73,7 +73,7 @@ func (r *ComputeInstanceFeedbackReconciler) Reconcile(ctx context.Context, reque
 		return //nolint:nakedret
 	}
 
-	// Get the identifier of the virtual machine from the labels. If this isn't present it means that the object wasn't
+	// Get the identifier of the compute instance from the labels. If this isn't present it means that the object wasn't
 	// created by the fulfillment service, so we ignore it.
 	ciID, ok := object.Labels[cloudkitComputeInstanceIDLabel]
 	if !ok {
@@ -92,7 +92,7 @@ func (r *ComputeInstanceFeedbackReconciler) Reconcile(ctx context.Context, reque
 		return
 	}
 
-	// Fetch the virtual machine:
+	// Fetch the compute instance:
 	ci, err := r.fetchComputeInstance(ctx, ciID)
 	if err != nil {
 		return
@@ -138,7 +138,7 @@ func (r *ComputeInstanceFeedbackReconciler) saveComputeInstance(ctx context.Cont
 
 	if !equal(after, before) {
 		log.Info(
-			"Updating virtual machine",
+			"Updating compute instance",
 			"before", before,
 			"after", after,
 		)
