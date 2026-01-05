@@ -140,7 +140,7 @@ type ClusterOrderList struct {
 
 // GetName returns the name of the ClusterOrder resource
 func (co *ClusterOrder) GetName() string {
-	return co.Name
+	return co.ObjectMeta.Name
 }
 
 func init() {

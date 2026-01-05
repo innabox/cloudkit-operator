@@ -150,7 +150,7 @@ type VirtualMachineList struct {
 
 // GetName returns the name of the VirtualMachine resource
 func (vm *VirtualMachine) GetName() string {
-	return vm.Name
+	return vm.ObjectMeta.Name
 }
 
 func init() {
