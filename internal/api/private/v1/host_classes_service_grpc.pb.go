@@ -37,6 +37,7 @@ const (
 	HostClasses_Create_FullMethodName = "/private.v1.HostClasses/Create"
 	HostClasses_Update_FullMethodName = "/private.v1.HostClasses/Update"
 	HostClasses_Delete_FullMethodName = "/private.v1.HostClasses/Delete"
+	HostClasses_Signal_FullMethodName = "/private.v1.HostClasses/Signal"
 )
 
 // HostClassesClient is the client API for HostClasses service.
@@ -48,6 +49,8 @@ type HostClassesClient interface {
 	Create(ctx context.Context, in *HostClassesCreateRequest, opts ...grpc.CallOption) (*HostClassesCreateResponse, error)
 	Update(ctx context.Context, in *HostClassesUpdateRequest, opts ...grpc.CallOption) (*HostClassesUpdateResponse, error)
 	Delete(ctx context.Context, in *HostClassesDeleteRequest, opts ...grpc.CallOption) (*HostClassesDeleteResponse, error)
+	// Indicates that something changed in the object or the system that may require reconciling the object.
+	Signal(ctx context.Context, in *HostClassesSignalRequest, opts ...grpc.CallOption) (*HostClassesSignalResponse, error)
 }
 
 type hostClassesClient struct {
@@ -108,6 +111,16 @@ func (c *hostClassesClient) Delete(ctx context.Context, in *HostClassesDeleteReq
 	return out, nil
 }
 
+func (c *hostClassesClient) Signal(ctx context.Context, in *HostClassesSignalRequest, opts ...grpc.CallOption) (*HostClassesSignalResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HostClassesSignalResponse)
+	err := c.cc.Invoke(ctx, HostClasses_Signal_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HostClassesServer is the server API for HostClasses service.
 // All implementations must embed UnimplementedHostClassesServer
 // for forward compatibility.
@@ -117,6 +130,8 @@ type HostClassesServer interface {
 	Create(context.Context, *HostClassesCreateRequest) (*HostClassesCreateResponse, error)
 	Update(context.Context, *HostClassesUpdateRequest) (*HostClassesUpdateResponse, error)
 	Delete(context.Context, *HostClassesDeleteRequest) (*HostClassesDeleteResponse, error)
+	// Indicates that something changed in the object or the system that may require reconciling the object.
+	Signal(context.Context, *HostClassesSignalRequest) (*HostClassesSignalResponse, error)
 	mustEmbedUnimplementedHostClassesServer()
 }
 
@@ -141,6 +156,9 @@ func (UnimplementedHostClassesServer) Update(context.Context, *HostClassesUpdate
 }
 func (UnimplementedHostClassesServer) Delete(context.Context, *HostClassesDeleteRequest) (*HostClassesDeleteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
+}
+func (UnimplementedHostClassesServer) Signal(context.Context, *HostClassesSignalRequest) (*HostClassesSignalResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Signal not implemented")
 }
 func (UnimplementedHostClassesServer) mustEmbedUnimplementedHostClassesServer() {}
 func (UnimplementedHostClassesServer) testEmbeddedByValue()                     {}
@@ -253,6 +271,24 @@ func _HostClasses_Delete_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HostClasses_Signal_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HostClassesSignalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostClassesServer).Signal(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostClasses_Signal_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostClassesServer).Signal(ctx, req.(*HostClassesSignalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // HostClasses_ServiceDesc is the grpc.ServiceDesc for HostClasses service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -279,6 +315,10 @@ var HostClasses_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Delete",
 			Handler:    _HostClasses_Delete_Handler,
+		},
+		{
+			MethodName: "Signal",
+			Handler:    _HostClasses_Signal_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

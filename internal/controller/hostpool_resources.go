@@ -98,4 +98,4 @@ func labelSelectorFromHostPoolInstance(instance *v1alpha1.HostPool) client.Match
 }
 
 // Note: HostPool reference helper functions are now provided as methods on the HostPool type
-// in api/v1alpha1/hostpool_hostpoolreference.go for consistency with VirtualMachine pattern.
+// in api/v1alpha1/hostpool_hostpoolreference.go for consistency with ComputeInstance pattern.

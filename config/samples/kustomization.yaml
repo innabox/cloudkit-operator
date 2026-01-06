@@ -2,6 +2,6 @@
 resources:
 - cloudkit_v1alpha1_clusterorder.yaml
 - cloudkit_v1alpha1_hostpool.yaml
-- cloudkit_v1alpha1_virtualmachine.yaml
+- cloudkit_v1alpha1_computeinstance.yaml
 - cloudkit_v1alpha1_tenant.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

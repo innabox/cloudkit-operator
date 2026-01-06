@@ -46,7 +46,7 @@ linters:
         path: api/v1alpha1/hostpool_hostpoolreference.go
       - linters:
           - dupl
-        path: api/v1alpha1/virtualmachine_virtualmachinereference.go
+        path: api/v1alpha1/computeinstance_virtualmachinereference.go
     paths:
       - third_party$
       - builtin$

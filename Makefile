@@ -122,6 +122,33 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet envtest ## Run tests.
 	GOTOOLCHAIN=go1.25.0+auto KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
+.PHONY: test-integration
+test-integration: test test-kustomize test-smoke ## Run all tests including integration (kustomize + smoke).
+
+.PHONY: test-kustomize
+test-kustomize: kustomize ## Validate kustomize configurations (catches missing files in kustomization.yaml).
+	@echo "Validating kustomize configurations..."
+	$(KUSTOMIZE) build config/crd > /dev/null
+	$(KUSTOMIZE) build config/rbac > /dev/null
+	$(KUSTOMIZE) build config/samples > /dev/null
+	$(KUSTOMIZE) build config/default > /dev/null
+	@echo "All kustomize configurations are valid"
+
+.PHONY: test-smoke
+test-smoke: kustomize ## Run smoke test in kind cluster (creates/deletes test cluster).
+	@echo "Creating kind cluster..."
+	$(KIND) create cluster --name cloudkit-test --wait 5m || true
+	@echo "Installing CRDs..."
+	$(KUBECTL) apply -k config/crd
+	@echo "Creating sample ComputeInstance..."
+	$(KUBECTL) apply -f config/samples/cloudkit_v1alpha1_computeinstance.yaml
+	@echo "Verifying ComputeInstance creation..."
+	$(KUBECTL) get computeinstance
+	$(KUBECTL) get ci
+	@echo "Cleaning up..."
+	$(KIND) delete cluster --name cloudkit-test
+	@echo "Smoke test passed!"
+
 # Utilize Kind or modify the e2e tests to load the image locally, enabling compatibility with other vendors.
 .PHONY: test-e2e  # Run the e2e tests against a Kind k8s instance that is spun up.
 test-e2e:
@@ -138,7 +165,7 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 ##@ Build
 
 .PHONY: build
-build: manifests generate fmt vet ## Build manager binary.
+build: test ## Build manager binary (runs all tests first).
 	go build -o bin/manager cmd/main.go
 
 .PHONY: run
@@ -161,7 +188,7 @@ image-run: ## Run container image locally.
 	$(CONTAINER_TOOL) run --rm --userns keep-id --name cloudkit-controller \
 		-v ${HOME}/.kube:/.kube -e HOME=/ \
 		-e CLOUDKIT_CLUSTER_ORDER_NAMESPACE=$(CLOUDKIT_DEV_NAMESPACE) \
-		-e CLOUDKIT_VM_ORDER_NAMESPACE=$(CLOUDKIT_DEV_NAMESPACE) \
+		-e CLOUDKIT_COMPUTE_INSTANCE_NAMESPACE=$(CLOUDKIT_DEV_NAMESPACE) \
 		-e CLOUDKIT_HOSTPOOL_ORDER_NAMESPACE=$(CLOUDKIT_DEV_NAMESPACE) \
 		${IMG}
 

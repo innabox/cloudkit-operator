@@ -37,6 +37,7 @@ const (
 	HostPools_Create_FullMethodName = "/private.v1.HostPools/Create"
 	HostPools_Delete_FullMethodName = "/private.v1.HostPools/Delete"
 	HostPools_Update_FullMethodName = "/private.v1.HostPools/Update"
+	HostPools_Signal_FullMethodName = "/private.v1.HostPools/Signal"
 )
 
 // HostPoolsClient is the client API for HostPools service.
@@ -48,6 +49,8 @@ type HostPoolsClient interface {
 	Create(ctx context.Context, in *HostPoolsCreateRequest, opts ...grpc.CallOption) (*HostPoolsCreateResponse, error)
 	Delete(ctx context.Context, in *HostPoolsDeleteRequest, opts ...grpc.CallOption) (*HostPoolsDeleteResponse, error)
 	Update(ctx context.Context, in *HostPoolsUpdateRequest, opts ...grpc.CallOption) (*HostPoolsUpdateResponse, error)
+	// Indicates that something changed in the object or the system that may require reconciling the object.
+	Signal(ctx context.Context, in *HostPoolsSignalRequest, opts ...grpc.CallOption) (*HostPoolsSignalResponse, error)
 }
 
 type hostPoolsClient struct {
@@ -108,6 +111,16 @@ func (c *hostPoolsClient) Update(ctx context.Context, in *HostPoolsUpdateRequest
 	return out, nil
 }
 
+func (c *hostPoolsClient) Signal(ctx context.Context, in *HostPoolsSignalRequest, opts ...grpc.CallOption) (*HostPoolsSignalResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HostPoolsSignalResponse)
+	err := c.cc.Invoke(ctx, HostPools_Signal_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HostPoolsServer is the server API for HostPools service.
 // All implementations must embed UnimplementedHostPoolsServer
 // for forward compatibility.
@@ -117,6 +130,8 @@ type HostPoolsServer interface {
 	Create(context.Context, *HostPoolsCreateRequest) (*HostPoolsCreateResponse, error)
 	Delete(context.Context, *HostPoolsDeleteRequest) (*HostPoolsDeleteResponse, error)
 	Update(context.Context, *HostPoolsUpdateRequest) (*HostPoolsUpdateResponse, error)
+	// Indicates that something changed in the object or the system that may require reconciling the object.
+	Signal(context.Context, *HostPoolsSignalRequest) (*HostPoolsSignalResponse, error)
 	mustEmbedUnimplementedHostPoolsServer()
 }
 
@@ -141,6 +156,9 @@ func (UnimplementedHostPoolsServer) Delete(context.Context, *HostPoolsDeleteRequ
 }
 func (UnimplementedHostPoolsServer) Update(context.Context, *HostPoolsUpdateRequest) (*HostPoolsUpdateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Update not implemented")
+}
+func (UnimplementedHostPoolsServer) Signal(context.Context, *HostPoolsSignalRequest) (*HostPoolsSignalResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Signal not implemented")
 }
 func (UnimplementedHostPoolsServer) mustEmbedUnimplementedHostPoolsServer() {}
 func (UnimplementedHostPoolsServer) testEmbeddedByValue()                   {}
@@ -253,6 +271,24 @@ func _HostPools_Update_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HostPools_Signal_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HostPoolsSignalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HostPoolsServer).Signal(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HostPools_Signal_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HostPoolsServer).Signal(ctx, req.(*HostPoolsSignalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // HostPools_ServiceDesc is the grpc.ServiceDesc for HostPools service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -279,6 +315,10 @@ var HostPools_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Update",
 			Handler:    _HostPools_Update_Handler,
+		},
+		{
+			MethodName: "Signal",
+			Handler:    _HostPools_Signal_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
