@@ -194,7 +194,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	computeInstanceNamespace := os.Getenv("CLOUDKIT_COMPUTE_INSTANCE_ORDER_NAMESPACE")
+	computeInstanceNamespace := os.Getenv("CLOUDKIT_COMPUTE_INSTANCE_NAMESPACE")
 
 	// Create the gRPC connection:
 	var grpcConn *grpc.ClientConn

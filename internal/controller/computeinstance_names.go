@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	defaultComputeInstanceNamespace string = "cloudkit-computeinstance-orders"
+	defaultComputeInstanceNamespace string = "cloudkit-computeinstance"
 )
 
 var (

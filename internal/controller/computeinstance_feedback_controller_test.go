@@ -83,7 +83,7 @@ var _ = Describe("ComputeInstanceFeedbackReconciler", func() {
 		resourceName      = "test-ci"
 		vmNamespace       = "default"
 		ciID              = "test-ci-id"
-		computeInstanceNS = "cloudkit-computeinstance-orders"
+		computeInstanceNS = "cloudkit-computeinstance"
 	)
 
 	var (
