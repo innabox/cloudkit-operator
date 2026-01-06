@@ -302,12 +302,8 @@ func (r *HostPoolReconciler) handleDelete(ctx context.Context, req ctrl.Request,
 				remainingTime, err := r.webhookClient.TriggerWebhook(ctx, url, instance)
 				if err != nil {
 					log.Error(err, "failed to trigger webhook", "url", url, "error", err)
-					return ctrl.Result{Requeue: true}, nil
 				}
-
-				if remainingTime != 0 {
-					return ctrl.Result{RequeueAfter: remainingTime}, nil
-				}
+				return ctrl.Result{RequeueAfter: remainingTime}, nil
 			}
 		}
 
