@@ -119,12 +119,11 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 .PHONY: test
-test: manifests generate fmt vet envtest test-kustomize test-smoke ## Run all tests (unit + kustomize + smoke).
+test: manifests generate fmt vet envtest ## Run tests.
 	GOTOOLCHAIN=go1.25.0+auto KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
-.PHONY: test-unit
-test-unit: manifests generate fmt vet envtest ## Run unit tests only (fast).
-	GOTOOLCHAIN=go1.25.0+auto KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+.PHONY: test-integration
+test-integration: test test-kustomize test-smoke ## Run all tests including integration (kustomize + smoke).
 
 .PHONY: test-kustomize
 test-kustomize: kustomize ## Validate kustomize configurations (catches missing files in kustomization.yaml).
