@@ -64,19 +64,6 @@ spec:
           status:
             description: status defines the observed state of ComputeInstance
             properties:
-              computeInstanceReference:
-                description: Reference to the namespace that contains ComputeInstance
-                  resources
-                properties:
-                  kubeVirtComputeInstanceName:
-                    type: string
-                  namespace:
-                    description: Namespace that contains the ComputeInstance resources
-                    type: string
-                required:
-                - kubeVirtComputeInstanceName
-                - namespace
-                type: object
               conditions:
                 description: Conditions holds an array of metav1.Condition that describe
                   the state of the ComputeInstance
@@ -164,6 +151,19 @@ spec:
                     type: string
                 required:
                 - name
+                - namespace
+                type: object
+              virtualMachineReference:
+                description: Reference to the KubeVirt VirtualMachine CR created by
+                  this ComputeInstance
+                properties:
+                  kubeVirtVirtualMachineName:
+                    type: string
+                  namespace:
+                    description: Namespace that contains the VirtualMachine resources
+                    type: string
+                required:
+                - kubeVirtVirtualMachineName
                 - namespace
                 type: object
             type: object
